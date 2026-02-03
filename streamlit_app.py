@@ -3,7 +3,6 @@
 import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
-import altair as alt
 from datetime import datetime
 
 st.sidebar.title("Navigation")
@@ -381,7 +380,7 @@ elif page == "Data Analysis":
     data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
     data['snapDate_str'] = pd.to_datetime(data['snapDate']).dt.strftime('%Y-%m-%d')
 
-   
+
 
 
 
