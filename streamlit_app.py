@@ -513,9 +513,7 @@ elif page == "Data Analysis":
 
             # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
             st.write("### 🌌 Overall Rank Correlation")
-                        # 1. Create the scatter plot
-            # 1. Create the scatter plot WITHOUT the marginal parameters
-            st.write("### 🌌 Overall Rank Correlation")
+           
             fig_scatter = px.scatter(
                 plot_data,
                 x='rank_past',
