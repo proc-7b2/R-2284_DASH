@@ -508,6 +508,7 @@ elif page == "Data Analysis":
             st.write("### 🌌 Overall Rank Correlation")
                         # 1. Create the scatter plot
             # 1. Create the scatter plot WITHOUT the marginal parameters
+            st.write("### 🌌 Overall Rank Correlation")
             fig_scatter = px.scatter(
                 plot_data,
                 x='rank_past',
@@ -515,23 +516,14 @@ elif page == "Data Analysis":
                 hover_name='name',
                 color='rank_diff',
                 color_continuous_scale='RdYlGn',
-                labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank', 'rank_diff': 'Change'},
-                template="plotly_dark",
-                opacity=0.8  # Helps see overlapping data points
+                labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'},
+                title="Comparison of All Bundles (Items below the diagonal line are Climbing)"
             )
-
-            # 2. Add the diagonal line (Items below this line are climbing)
-            fig_scatter.add_shape(
-                type="line", x0=0, y0=0, x1=plot_data['rank_past'].max(), y1=plot_data['rank_past'].max(),
-                line=dict(color="white", dash="dash", width=1)
-            )
-
-            # 3. Apply custom styling to make the dots stand out
-            fig_scatter.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
-
+            # Add a diagonal line (Items below this line are improving)
+            fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
+                                line=dict(color="Gray", dash="dash"))
+            
             st.plotly_chart(fig_scatter, use_container_width=True)
-
-            # Add a small distribution chart below the scatter
             
     else:
         st.error("No valid dates found in data. Please check your 'snapDate' column.")
