@@ -517,7 +517,7 @@ elif page == "Data Analysis":
                 color_continuous_scale='RdYlGn',
                 labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank', 'rank_diff': 'Change'},
                 template="plotly_dark",
-                opacity=0.7  # Helps see overlapping data points
+                opacity=0.8  # Helps see overlapping data points
             )
 
             # 2. Add the diagonal line (Items below this line are climbing)
@@ -532,15 +532,7 @@ elif page == "Data Analysis":
             st.plotly_chart(fig_scatter, use_container_width=True)
 
             # Add a small distribution chart below the scatter
-            st.write("### 📏 Distribution of Rank Changes")
-            fig_dist = px.histogram(
-                plot_data, 
-                x="rank_diff", 
-                nbins=50, 
-                color_discrete_sequence=['#2ecc71'], # Solid green
-                template="plotly_dark"
-            )
-            st.plotly_chart(fig_dist, use_container_width=True)
+            
     else:
         st.error("No valid dates found in data. Please check your 'snapDate' column.")
 
