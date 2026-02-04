@@ -228,28 +228,28 @@ if page == "Home":
     min_dt = data['snapDate'].min().to_pydatetime()
     max_dt = data['snapDate'].max().to_pydatetime()
 
+    here_start_default = max(min_dt, max_dt - timedelta(days=7))
+    gone_start_default = max(min_dt, max_dt - timedelta(days=6))
+
     d_col1, d_col2 = st.columns(2)
 
     with d_col1:
-        # Default: Last month vs This month (example)
         here_dates = st.date_input(
-
             "Was Here (Range)",
-            value=(min_dt, max_dt - timedelta(days=7)), # Now math works!
+            # Safety: ensure start <= end by using [start, end] logic
+            value=(here_start_default, max_dt), 
             min_value=min_dt,
             max_value=max_dt,
             format="DD/MM/YYYY"
-        )
-        
+    )
 
     with d_col2:
         gone_dates = st.date_input(
             "Is Gone (Range)",
-            value=(max_dt - timedelta(days=6), max_dt), # Default range
+            value=(gone_start_default, max_dt),
             min_value=min_dt,
             max_value=max_dt,
-            format="DD/MM/YYYY",
-            help="Select a start and end date. Bundles must NOT exist anywhere here."
+            format="DD/MM/YYYY"
         )
 
         # Validating that we have ranges (start and end) for both
