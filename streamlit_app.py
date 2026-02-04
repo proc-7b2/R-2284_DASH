@@ -245,9 +245,9 @@ if page == "Home":
     with d_col2:
         gone_dates = st.date_input(
             "Is Gone (Range)",
-            value=(max_date - timedelta(days=6), max_date), # Default range
-            min_value=min_date,
-            max_value=max_date,
+            value=(max_dt - timedelta(days=6), max_dt), # Default range
+            min_value=min_dt,
+            max_value=max_dt,
             format="DD/MM/YYYY",
             help="Select a start and end date. Bundles must NOT exist anywhere here."
         )
