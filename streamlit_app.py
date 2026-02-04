@@ -419,15 +419,90 @@ elif page == "Data Analysis":
 
     )
 
-    st.title("Data Analysis")
-    st.write("This is the Data Analysis page.")
-
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     data = conn.read(worksheet="Testing DATA.1")
 
-    data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
-    data['snapDate_str'] = pd.to_datetime(data['snapDate']).dt.strftime('%Y-%m-%d')
+    st.divider()
+    st.subheader("📈 Rank Climbers & Fallers")
+
+    # --- 1. Range Presets ---
+    preset = st.radio(
+        "Select Comparison Period:",
+        options=["Daily (Today vs Yesterday)", "Weekly (This Week vs Last Week)", "Monthly (This Month vs Last Month)", "Custom"],
+        horizontal=True
+    )
+
+    max_dt = data['snapDate'].max().to_pydatetime()
+
+    if preset == "Daily (Today vs Yesterday)":
+        here_val = (max_dt - timedelta(days=1), max_dt - timedelta(days=1))
+        gone_val = (max_dt, max_dt)
+    elif preset == "Weekly (This Week vs Last Week)":
+        here_val = (max_dt - timedelta(days=14), max_dt - timedelta(days=7))
+        gone_val = (max_dt - timedelta(days=6), max_dt)
+    elif preset == "Monthly (This Month vs Last Month)":
+        here_val = (max_dt - timedelta(days=60), max_dt - timedelta(days=30))
+        gone_val = (max_dt - timedelta(days=29), max_dt)
+    else:
+        here_val = (max_dt - timedelta(days=7), max_dt)
+        gone_val = (max_dt - timedelta(days=7), max_dt)
+
+    # --- 2. Date Inputs (Updated by Presets) ---
+    c1, c2 = st.columns(2)
+    with c1:
+        range_a = st.date_input("Past Period (Range A)", value=here_val)
+    with c2:
+        range_b = st.date_input("Current Period (Range B)", value=gone_val)
+
+    if isinstance(range_a, tuple) and len(range_a) == 2 and isinstance(range_b, tuple) and len(range_b) == 2:
+        # Convert to datetime for pandas
+        start_a, end_a = pd.to_datetime(range_a[0]), pd.to_datetime(range_a[1])
+        start_b, end_b = pd.to_datetime(range_b[0]), pd.to_datetime(range_b[1])
+
+        # Get average ranks for both periods
+        data_a = data[(data['snapDate'] >= start_a) & (data['snapDate'] <= end_a)]
+        data_b = data[(data['snapDate'] >= start_b) & (data['snapDate'] <= end_b)]
+
+        avg_rank_a = data_a.groupby('Id')['rank'].mean()
+        avg_rank_b = data_b.groupby('Id')['rank'].mean()
+
+        # Merge into a comparison dataframe
+        comparison = pd.DataFrame({
+            'Past Rank': avg_rank_a,
+            'Current Rank': avg_rank_b
+        }).dropna() # Only show items existing in BOTH ranges
+
+        # Calculate Change (Lower rank number is better, so Past - Current)
+        comparison['Change'] = comparison['Past Rank'] - comparison['Current Rank']
+        
+        # Add Item Names back
+        names = data.drop_duplicates('Id').set_index('Id')[['name', 'creatorName']]
+        comparison = comparison.join(names)
+
+        # --- 3. Formatting for "Easy View" ---
+        def format_change(val):
+            if val > 0: return f"🔼 +{int(val)}"
+            if val < 0: return f"🔽 {int(val)}"
+            return "➡️ 0"
+
+        comparison['Status'] = comparison['Change'].apply(format_change)
+        
+        # Sort by biggest climbers
+        comparison = comparison.sort_values(by='Change', ascending=False)
+
+        st.dataframe(
+            comparison[['name', 'Past Rank', 'Current Rank', 'Status', 'creatorName']],
+            use_container_width=True,
+            column_config={
+                "Status": st.column_config.Column("Movement", help="Positive means the bundle is moving closer to Rank 1"),
+                "Past Rank": st.column_config.NumberColumn(format="%d"),
+                "Current Rank": st.column_config.NumberColumn(format="%d"),
+            }
+        )
+
+
+
 
 
 
