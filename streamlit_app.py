@@ -507,31 +507,40 @@ elif page == "Data Analysis":
             # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
             st.write("### 🌌 Overall Rank Correlation")
                         # 1. Create the scatter plot
+            # 1. Create the scatter plot WITHOUT the marginal parameters
             fig_scatter = px.scatter(
                 plot_data,
                 x='rank_past',
                 y='rank_curr',
-                # We use 'box' but we will prevent it from inheriting the color scale
-                marginal_x="box", 
-                marginal_y="box",
                 hover_name='name',
                 color='rank_diff',
                 color_continuous_scale='RdYlGn',
                 labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank', 'rank_diff': 'Change'},
-                template="plotly_dark"
+                template="plotly_dark",
+                opacity=0.7  # Helps see overlapping data points
             )
 
-            # 2. Fix the Marginal Plot Colors (The manual override to stop the crash)
-            # This forces the box plots to be a neutral grey so they don't crash the app
-            fig_scatter.update_traces(marker=dict(color='lightgrey'), selector=dict(type='box'))
-
-            # 3. Add the diagonal line
+            # 2. Add the diagonal line (Items below this line are climbing)
             fig_scatter.add_shape(
                 type="line", x0=0, y0=0, x1=plot_data['rank_past'].max(), y1=plot_data['rank_past'].max(),
                 line=dict(color="white", dash="dash", width=1)
             )
 
+            # 3. Apply custom styling to make the dots stand out
+            fig_scatter.update_traces(marker=dict(size=10, line=dict(width=0.5, color='white')))
+
             st.plotly_chart(fig_scatter, use_container_width=True)
+
+            # Add a small distribution chart below the scatter
+            st.write("### 📏 Distribution of Rank Changes")
+            fig_dist = px.histogram(
+                plot_data, 
+                x="rank_diff", 
+                nbins=50, 
+                color_discrete_sequence=['#2ecc71'], # Solid green
+                template="plotly_dark"
+            )
+            st.plotly_chart(fig_dist, use_container_width=True)
     else:
         st.error("No valid dates found in data. Please check your 'snapDate' column.")
 
