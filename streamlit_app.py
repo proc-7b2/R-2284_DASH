@@ -506,28 +506,32 @@ elif page == "Data Analysis":
 
             # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
             st.write("### 🌌 Overall Rank Correlation")
+                        # 1. Create the scatter plot
             fig_scatter = px.scatter(
-            plot_data,
-            x='rank_past',
-            y='rank_curr',
-            # Changed from 'histogram' to 'box' or 'rug' to avoid the Color Property error
-            marginal_x="box", 
-            marginal_y="box",
-            hover_name='name',
-            color='rank_diff',
-            # Explicitly tell Plotly this is a continuous (number) scale
-            color_continuous_scale='RdYlGn',
-            labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank', 'rank_diff': 'Change'},
-            template="plotly_dark"
+                plot_data,
+                x='rank_past',
+                y='rank_curr',
+                # We use 'box' but we will prevent it from inheriting the color scale
+                marginal_x="box", 
+                marginal_y="box",
+                hover_name='name',
+                color='rank_diff',
+                color_continuous_scale='RdYlGn',
+                labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank', 'rank_diff': 'Change'},
+                template="plotly_dark"
             )
 
-        # Add the diagonal line so we can see who is climbing
-        fig_scatter.add_shape(
-            type="line", x0=0, y0=0, x1=plot_data['rank_past'].max(), y1=plot_data['rank_past'].max(),
-            line=dict(color="Gray", dash="dash")
+            # 2. Fix the Marginal Plot Colors (The manual override to stop the crash)
+            # This forces the box plots to be a neutral grey so they don't crash the app
+            fig_scatter.update_traces(marker=dict(color='lightgrey'), selector=dict(type='box'))
+
+            # 3. Add the diagonal line
+            fig_scatter.add_shape(
+                type="line", x0=0, y0=0, x1=plot_data['rank_past'].max(), y1=plot_data['rank_past'].max(),
+                line=dict(color="white", dash="dash", width=1)
             )
 
-        st.plotly_chart(fig_scatter, use_container_width=True)
+            st.plotly_chart(fig_scatter, use_container_width=True)
     else:
         st.error("No valid dates found in data. Please check your 'snapDate' column.")
 
