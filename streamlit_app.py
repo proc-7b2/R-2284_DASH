@@ -510,12 +510,14 @@ elif page == "Data Analysis":
                 plot_data,
                 x='rank_past',
                 y='rank_curr',
+                marginal_x="histogram", # Adds density view to the top
+                marginal_y="violin",    # Adds distribution view to the side
                 hover_name='name',
                 color='rank_diff',
                 color_continuous_scale='RdYlGn',
-                labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'},
-                title="Comparison of All Bundles (Items below the diagonal line are Climbing)"
+                template="plotly_dark"   # Matches your dark theme perfectly
             )
+            
             # Add a diagonal line (Items below this line are improving)
             fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
                                 line=dict(color="Gray", dash="dash"))
