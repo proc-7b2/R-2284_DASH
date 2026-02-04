@@ -4,7 +4,8 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
-
+import plotly.express as px
+import plotly.graph_objects as go
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Settings"])
@@ -422,93 +423,103 @@ elif page == "Data Analysis":
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     data = conn.read(worksheet="Testing DATA.1")
-   
-    # --- ADD/FIX THESE LINES IMMEDIATELY AFTER ---
-    # errors='coerce' turns garbage data into NaT (Not a Time) so it doesn't crash
+    data = conn.read(worksheet="Testing DATA.1")
+    # CRITICAL: Convert these immediately
     data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
-
+    data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
+   
+   
     # Now that it's a datetime, this line (at 436) will work:
     max_dt = data['snapDate'].max().to_pydatetime()
 
     st.divider()
-    st.subheader("📈 Rank Climbers & Fallers")
+    st.subheader("📊 Rank Movement Analytics")
 
-    # --- 1. Range Presets ---
-    preset = st.radio(
-        "Select Comparison Period:",
-        options=["Daily (Today vs Yesterday)", "Weekly (This Week vs Last Week)", "Monthly (This Month vs Last Month)", "Custom"],
-        horizontal=True
-    )
+    # --- STEP 1: SAFE DATE CONVERSION ---
+    # Ensure snapDate is datetime immediately
+    data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
+    valid_dates = data.dropna(subset=['snapDate'])
 
-    max_dt = data['snapDate'].max().to_pydatetime()
+    if not valid_dates.empty:
+        min_dt = valid_dates['snapDate'].min().to_pydatetime()
+        max_dt = valid_dates['snapDate'].max().to_pydatetime()
 
-    if preset == "Daily (Today vs Yesterday)":
-        here_val = (max_dt - timedelta(days=1), max_dt - timedelta(days=1))
-        gone_val = (max_dt, max_dt)
-    elif preset == "Weekly (This Week vs Last Week)":
-        here_val = (max_dt - timedelta(days=14), max_dt - timedelta(days=7))
-        gone_val = (max_dt - timedelta(days=6), max_dt)
-    elif preset == "Monthly (This Month vs Last Month)":
-        here_val = (max_dt - timedelta(days=60), max_dt - timedelta(days=30))
-        gone_val = (max_dt - timedelta(days=29), max_dt)
+        # --- STEP 2: PRESETS ---
+        preset = st.radio("Range Preset:", ["Today vs Yesterday", "This Week vs Last Week", "Monthly", "Custom"], horizontal=True)
+
+        if preset == "Today vs Yesterday":
+            p_val, c_val = (max_dt - timedelta(days=1), max_dt - timedelta(days=1)), (max_dt, max_dt)
+        elif preset == "This Week vs Last Week":
+            p_val, c_val = (max_dt - timedelta(days=14), max_dt - timedelta(days=7)), (max_dt - timedelta(days=6), max_dt)
+        elif preset == "Monthly":
+            p_val, c_val = (max_dt - timedelta(days=60), max_dt - timedelta(days=31)), (max_dt - timedelta(days=30), max_dt)
+        else:
+            p_val, c_val = (min_dt, max_dt - timedelta(days=7)), (max_dt - timedelta(days=6), max_dt)
+
+        col1, col2 = st.columns(2)
+        with col1: past_rng = st.date_input("Past Period", value=p_val)
+        with col2: curr_rng = st.date_input("Current Period", value=c_val)
+
+        # --- STEP 3: DATA PROCESSING ---
+        if len(past_rng) == 2 and len(curr_rng) == 2:
+            p_start, p_end = pd.to_datetime(past_rng[0]), pd.to_datetime(past_rng[1])
+            c_start, c_end = pd.to_datetime(curr_rng[0]), pd.to_datetime(curr_rng[1])
+
+            # Aggregate average rank for both periods
+            df_past = data[(data['snapDate'] >= p_start) & (data['snapDate'] <= p_end)].groupby('Id')['rank'].mean()
+            df_curr = data[(data['snapDate'] >= c_start) & (data['snapDate'] <= c_end)].groupby('Id')['rank'].mean()
+
+            # Merge and calculate delta
+            comparison = pd.merge(df_past, df_curr, on='Id', suffixes=('_past', '_curr')).dropna()
+            comparison['rank_diff'] = comparison['rank_past'] - comparison['rank_curr'] # Positive = Climbing
+            
+            # Bring back the names for the chart
+            names = data.drop_duplicates('Id').set_index('Id')[['name']]
+            plot_data = comparison.join(names).reset_index()
+
+            # --- STEP 4: PLOTLY BAR CHART (Top Movers) ---
+            st.write("### 🚀 Top Movers (Rank Change)")
+            
+            # Filter for top 15 climbers and top 15 fallers
+            top_climbers = plot_data.sort_values('rank_diff', ascending=False).head(15)
+            top_fallers = plot_data.sort_values('rank_diff', ascending=True).head(15)
+            movers = pd.concat([top_climbers, top_fallers])
+
+            fig = px.bar(
+                movers,
+                x='rank_diff',
+                y='name',
+                orientation='h',
+                color='rank_diff',
+                color_continuous_scale='RdYlGn', # Red for negative, Green for positive
+                labels={'rank_diff': 'Rank Change (Pos = Climbing)', 'name': 'Bundle Name'},
+                hover_data=['rank_past', 'rank_curr'],
+                text_auto='.0f'
+            )
+            
+            fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=600)
+            st.plotly_chart(fig, use_container_width=True)
+
+            # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
+            st.write("### 🌌 Overall Rank Correlation")
+            fig_scatter = px.scatter(
+                plot_data,
+                x='rank_past',
+                y='rank_curr',
+                hover_name='name',
+                color='rank_diff',
+                color_continuous_scale='RdYlGn',
+                labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'},
+                title="Comparison of All Bundles (Items below the diagonal line are Climbing)"
+            )
+            # Add a diagonal line (Items below this line are improving)
+            fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
+                                line=dict(color="Gray", dash="dash"))
+            
+            st.plotly_chart(fig_scatter, use_container_width=True)
+
     else:
-        here_val = (max_dt - timedelta(days=7), max_dt)
-        gone_val = (max_dt - timedelta(days=7), max_dt)
-
-    # --- 2. Date Inputs (Updated by Presets) ---
-    c1, c2 = st.columns(2)
-    with c1:
-        range_a = st.date_input("Past Period (Range A)", value=here_val)
-    with c2:
-        range_b = st.date_input("Current Period (Range B)", value=gone_val)
-
-    if isinstance(range_a, tuple) and len(range_a) == 2 and isinstance(range_b, tuple) and len(range_b) == 2:
-        # Convert to datetime for pandas
-        start_a, end_a = pd.to_datetime(range_a[0]), pd.to_datetime(range_a[1])
-        start_b, end_b = pd.to_datetime(range_b[0]), pd.to_datetime(range_b[1])
-
-        # Get average ranks for both periods
-        data_a = data[(data['snapDate'] >= start_a) & (data['snapDate'] <= end_a)]
-        data_b = data[(data['snapDate'] >= start_b) & (data['snapDate'] <= end_b)]
-
-        avg_rank_a = data_a.groupby('Id')['rank'].mean()
-        avg_rank_b = data_b.groupby('Id')['rank'].mean()
-
-        # Merge into a comparison dataframe
-        comparison = pd.DataFrame({
-            'Past Rank': avg_rank_a,
-            'Current Rank': avg_rank_b
-        }).dropna() # Only show items existing in BOTH ranges
-
-        # Calculate Change (Lower rank number is better, so Past - Current)
-        comparison['Change'] = comparison['Past Rank'] - comparison['Current Rank']
-        
-        # Add Item Names back
-        names = data.drop_duplicates('Id').set_index('Id')[['name', 'creatorName']]
-        comparison = comparison.join(names)
-
-        # --- 3. Formatting for "Easy View" ---
-        def format_change(val):
-            if val > 0: return f"🔼 +{int(val)}"
-            if val < 0: return f"🔽 {int(val)}"
-            return "➡️ 0"
-
-        comparison['Status'] = comparison['Change'].apply(format_change)
-        
-        # Sort by biggest climbers
-        comparison = comparison.sort_values(by='Change', ascending=False)
-
-        st.dataframe(
-            comparison[['name', 'Past Rank', 'Current Rank', 'Status', 'creatorName']],
-            use_container_width=True,
-            column_config={
-                "Status": st.column_config.Column("Movement", help="Positive means the bundle is moving closer to Rank 1"),
-                "Past Rank": st.column_config.NumberColumn(format="%d"),
-                "Current Rank": st.column_config.NumberColumn(format="%d"),
-            }
-        )
-
-
+        st.error("No valid dates found in data. Please check your 'snapDate' column.")
 
 
 
