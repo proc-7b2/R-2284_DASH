@@ -295,7 +295,7 @@ if page == "Home":
                 event1 = st.dataframe(
                     Display_disappear_Bundles, 
                     width=800,
-                    height=600, 
+                    height=750, 
                     use_container_width=True,
                     hide_index=True,
                     on_select="rerun", 
