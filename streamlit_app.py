@@ -213,6 +213,7 @@ if page == "Home":
     st.space()
     st.divider()
     
+    
 
     st.subheader("⛔ Disappear Bundles (Range Comparison)")
     st.markdown("Find items that existed in the **First Range** but are completely missing from the **Second Range**.")
@@ -228,12 +229,14 @@ if page == "Home":
         # Default: Last month vs This month (example)
         here_dates = st.date_input(
             "Was Here (Range)",
+            max_date = pd.to_datetime(max_date),
             value=(min_date, max_date - timedelta(days=7)), # Default range
             min_value=min_date,
             max_value=max_date,
             format="DD/MM/YYYY",
             help="Select a start and end date. Bundles must have existed at least once here."
         )
+        
 
     with d_col2:
         gone_dates = st.date_input(
