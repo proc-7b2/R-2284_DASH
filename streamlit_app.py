@@ -440,6 +440,9 @@ elif page == "Data Analysis":
     data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
     valid_dates = data.dropna(subset=['snapDate'])
 
+    min_dt = valid_dates.min().to_pydatetime().date()
+    max_dt = valid_dates.max().to_pydatetime().date()
+
     if not valid_dates.empty:
         min_dt = valid_dates['snapDate'].min().to_pydatetime()
         max_dt = valid_dates['snapDate'].max().to_pydatetime()
@@ -448,19 +451,21 @@ elif page == "Data Analysis":
         preset = st.radio("Range Preset:", ["Today vs Yesterday", "This Week vs Last Week", "Monthly", "Custom"], horizontal=True)
 
         if preset == "Today vs Yesterday":
-            p_val, c_val = (max_dt - timedelta(days=1), max_dt - timedelta(days=1)), (max_dt, max_dt)
+            p_val = sorted((max(min_dt, max_dt - timedelta(days=1)), max(min_dt, max_dt - timedelta(days=1))))
+            c_val = sorted((max_dt, max_dt))
         elif preset == "This Week vs Last Week":
-            p_val, c_val = (max_dt - timedelta(days=14), max_dt - timedelta(days=7)), (max_dt - timedelta(days=6), max_dt)
-        elif preset == "Monthly":
-            p_val, c_val = (max_dt - timedelta(days=60), max_dt - timedelta(days=31)), (max_dt - timedelta(days=30), max_dt)
+            p_val = sorted((max(min_dt, max_dt - timedelta(days=14)), max(min_dt, max_dt - timedelta(days=7))))
+            c_val = sorted((max(min_dt, max_dt - timedelta(days=6)), max_dt))
         else:
-            p_val, c_val = (min_dt, max_dt - timedelta(days=7)), (max_dt - timedelta(days=6), max_dt)
+            p_val = sorted((min_dt, max_dt))
+            c_val = sorted((min_dt, max_dt))
 
+        # 4. Finally, create the date inputs
         col1, col2 = st.columns(2)
-        with col1: 
-            past_rng = st.date_input("Previous Period", value=p_val, min_value=min_dt, max_value=max_dt)        
-        with col2: 
-            curr_rng = st.date_input("Current Period", value=c_val, min_value=min_dt, max_value=max_dt)
+        with col1:
+            past_rng = st.date_input("Previous Period", value=p_val, key=f"past_{preset}")
+        with col2:
+            curr_rng = st.date_input("Current Period", value=c_val, key=f"curr_{preset}")
 
         # --- STEP 3: DATA PROCESSING ---
         if len(past_rng) == 2 and len(curr_rng) == 2:
@@ -525,8 +530,8 @@ elif page == "Data Analysis":
             
             st.plotly_chart(fig_scatter, use_container_width=True)
             
-    else:
-        st.error("No valid dates found in data. Please check your 'snapDate' column.")
+        else:
+            st.error("No valid dates found in data. Please check your 'snapDate' column.")
 
 
 
