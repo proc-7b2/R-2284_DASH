@@ -457,8 +457,10 @@ elif page == "Data Analysis":
             p_val, c_val = (min_dt, max_dt - timedelta(days=7)), (max_dt - timedelta(days=6), max_dt)
 
         col1, col2 = st.columns(2)
-        with col1: past_rng = st.date_input("Past Period", value=p_val)
-        with col2: curr_rng = st.date_input("Current Period", value=c_val)
+        with col1: 
+            past_rng = st.date_input("Previous Period", value=p_val, min_value=min_dt, max_value=max_dt)        
+        with col2: 
+            curr_rng = st.date_input("Current Period", value=c_val, min_value=min_dt, max_value=max_dt)
 
         # --- STEP 3: DATA PROCESSING ---
         if len(past_rng) == 2 and len(curr_rng) == 2:
