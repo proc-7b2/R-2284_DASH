@@ -4,6 +4,7 @@ import streamlit as st
 from streamlit_gsheets import GSheetsConnection
 import pandas as pd
 from datetime import datetime, timedelta
+sjdkjisd
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Settings"])
@@ -26,7 +27,11 @@ if page == "Home":
     data = conn.read(worksheet="Testing DATA.1")
 
     data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
-    data['snapDate_str'] = pd.to_datetime(data['snapDate']).dt.strftime('%Y-%m-%d')
+    # Ensure snapDate is a proper datetime object immediately
+    data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
+
+    # Create a separate column JUST for the dropdown text
+    data['snapDate_str'] = data['snapDate'].dt.strftime('%Y-%m-%d')
 
 
     st.subheader("⚙️ Controls")
@@ -220,21 +225,20 @@ if page == "Home":
 
     # --- 1. Date Range Selection UI ---
     # Get min/max dates for defaults
-    min_date = data['snapDate'].min()
-    max_date = data['snapDate'].max()
+    min_dt = data['snapDate'].min().to_pydatetime()
+    max_dt = data['snapDate'].max().to_pydatetime()
 
     d_col1, d_col2 = st.columns(2)
 
     with d_col1:
         # Default: Last month vs This month (example)
         here_dates = st.date_input(
+
             "Was Here (Range)",
-            max_date = pd.to_datetime(max_date),
-            value=(min_date, max_date - timedelta(days=7)), # Default range
-            min_value=min_date,
-            max_value=max_date,
-            format="DD/MM/YYYY",
-            help="Select a start and end date. Bundles must have existed at least once here."
+            value=(min_dt, max_dt - timedelta(days=7)), # Now math works!
+            min_value=min_dt,
+            max_value=max_dt,
+            format="DD/MM/YYYY"
         )
         
 
