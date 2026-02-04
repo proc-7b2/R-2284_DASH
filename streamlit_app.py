@@ -440,8 +440,9 @@ elif page == "Data Analysis":
     data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
     valid_dates = data.dropna(subset=['snapDate'])
 
-    min_dt = valid_dates.min().to_pydatetime().date()
-    max_dt = valid_dates.max().to_pydatetime().date()
+    # Specify ['snapDate'] so Pandas only looks at the date column
+    min_dt = data['snapDate'].dropna().min().to_pydatetime().date()
+    max_dt = data['snapDate'].dropna().max().to_pydatetime().date()
 
     if not valid_dates.empty:
         min_dt = valid_dates['snapDate'].min().to_pydatetime()
