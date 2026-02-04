@@ -503,6 +503,7 @@ elif page == "Data Analysis":
                 color='rank_diff',
                 color_continuous_scale='RdYlGn', # Red for negative, Green for positive
                 labels={'rank_diff': 'Rank Change (Pos = Climbing)', 'name': 'Bundle Name'},
+                custom_data=['Id'],
                 hover_data=['rank_past', 'rank_curr'],
                 text_auto='.0f'
                 )
