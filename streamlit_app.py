@@ -483,8 +483,10 @@ elif page == "Data Analysis":
             st.write("### 🚀 Top Movers (Rank Change)")
             
             # Filter for top 15 climbers and top 15 fallers
-            top_climbers = plot_data.sort_values('rank_diff', ascending=False).head(15)
-            top_fallers = plot_data.sort_values('rank_diff', ascending=True).head(15)
+            top_n = st.slider("Number of bundles to show in bar chart", 5, 50, 15)
+            # Then update your filtering line:
+            top_climbers = plot_data.sort_values('rank_diff', ascending=False).head(top_n)
+            top_fallers = plot_data.sort_values('rank_diff', ascending=True).head(top_n)
             movers = pd.concat([top_climbers, top_fallers])
 
             fig = px.bar(
