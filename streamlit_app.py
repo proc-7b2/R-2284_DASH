@@ -252,18 +252,19 @@ if page == "Home":
             help="Select a start and end date. Bundles must NOT exist anywhere here."
         )
 
-    # Validating that we have ranges (start and end) for both
+        # Validating that we have ranges (start and end) for both
     if isinstance(here_dates, tuple) and len(here_dates) == 2 and isinstance(gone_dates, tuple) and len(gone_dates) == 2:
-        start_here, end_here = here_dates
-        start_gone, end_gone = gone_dates
+        # --- ADD THESE 4 CONVERSION LINES ---
+        start_here = pd.to_datetime(here_dates[0])
+        end_here = pd.to_datetime(here_dates[1])
+        start_gone = pd.to_datetime(gone_dates[0])
+        end_gone = pd.to_datetime(gone_dates[1])
 
         # --- 2. The Filtering Logic ---
-        
-        # A. Find all IDs that existed in the "Gone" range
+        # Now these comparisons will work perfectly
         mask_gone = (data['snapDate'] >= start_gone) & (data['snapDate'] <= end_gone)
         ids_in_gone_range = data.loc[mask_gone, 'Id'].unique()
         
-        # B. Find rows in the "Here" range
         mask_here = (data['snapDate'] >= start_here) & (data['snapDate'] <= end_here)
         bundles_in_here_range = data.loc[mask_here].copy()
 
