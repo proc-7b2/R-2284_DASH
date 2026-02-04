@@ -422,6 +422,13 @@ elif page == "Data Analysis":
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     data = conn.read(worksheet="Testing DATA.1")
+   
+    # --- ADD/FIX THESE LINES IMMEDIATELY AFTER ---
+    # errors='coerce' turns garbage data into NaT (Not a Time) so it doesn't crash
+    data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
+
+    # Now that it's a datetime, this line (at 436) will work:
+    max_dt = data['snapDate'].max().to_pydatetime()
 
     st.divider()
     st.subheader("📈 Rank Climbers & Fallers")
