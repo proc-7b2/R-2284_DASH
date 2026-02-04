@@ -499,7 +499,7 @@ elif page == "Data Analysis":
                 labels={'rank_diff': 'Rank Change (Pos = Climbing)', 'name': 'Bundle Name'},
                 hover_data=['rank_past', 'rank_curr'],
                 text_auto='.0f'
-            )
+                )
             
             fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=600)
             st.plotly_chart(fig, use_container_width=True)
@@ -507,23 +507,27 @@ elif page == "Data Analysis":
             # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
             st.write("### 🌌 Overall Rank Correlation")
             fig_scatter = px.scatter(
-                plot_data,
-                x='rank_past',
-                y='rank_curr',
-                marginal_x="histogram", # Adds density view to the top
-                marginal_y="violin",    # Adds distribution view to the side
-                hover_name='name',
-                color='rank_diff',
-                color_continuous_scale='RdYlGn',
-                template="plotly_dark"   # Matches your dark theme perfectly
+            plot_data,
+            x='rank_past',
+            y='rank_curr',
+            # Changed from 'histogram' to 'box' or 'rug' to avoid the Color Property error
+            marginal_x="box", 
+            marginal_y="box",
+            hover_name='name',
+            color='rank_diff',
+            # Explicitly tell Plotly this is a continuous (number) scale
+            color_continuous_scale='RdYlGn',
+            labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank', 'rank_diff': 'Change'},
+            template="plotly_dark"
             )
-            
-            # Add a diagonal line (Items below this line are improving)
-            fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
-                                line=dict(color="Gray", dash="dash"))
-            
-            st.plotly_chart(fig_scatter, use_container_width=True)
 
+        # Add the diagonal line so we can see who is climbing
+        fig_scatter.add_shape(
+            type="line", x0=0, y0=0, x1=plot_data['rank_past'].max(), y1=plot_data['rank_past'].max(),
+            line=dict(color="Gray", dash="dash")
+            )
+
+        st.plotly_chart(fig_scatter, use_container_width=True)
     else:
         st.error("No valid dates found in data. Please check your 'snapDate' column.")
 
