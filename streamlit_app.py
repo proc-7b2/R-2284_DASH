@@ -491,13 +491,9 @@ elif page == "Data Analysis":
             # We create the columns first
             col_charts, col_details = st.columns([2, 1], gap="medium")
 
-            # Initialize selected_id to None at the start
-            selected_id = None 
-
             with col_charts:
-                # --- STEP 4: PLOTLY BAR CHART (Top Movers) ---
+                # --- STEP 4: PLOTLY BAR CHART ---
                 st.write("### 🚀 Top Movers (Rank Change)")
-                
                 top_n = st.slider("Number of bundles to show", 5, 50, 15)
                 top_climbers = plot_data.sort_values('rank_diff', ascending=False).head(top_n)
                 top_fallers = plot_data.sort_values('rank_diff', ascending=True).head(top_n)
@@ -511,153 +507,108 @@ elif page == "Data Analysis":
                     color='rank_diff',
                     color_continuous_scale='RdYlGn',
                     labels={'rank_diff': 'Rank Change', 'name': 'Bundle Name'},
-                    # CRITICAL: Pass Id as custom_data
                     custom_data=['Id'], 
                     hover_data=['rank_past', 'rank_curr'],
                     text_auto='.0f'
                 )
-                
                 fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=600)
-                
-                # 1. RENDER BAR CHART & CAPTURE EVENT
-                event_bar = st.plotly_chart(
-                    fig, 
-                    use_container_width=True, 
-                    on_select="rerun", 
-                    selection_mode="points",
-                    key="bar_chart"
-                )
+                # CRITICAL: Explicitly map customdata
+                fig.update_traces(customdata=movers[['Id']])
 
-                # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
+                event_bar = st.plotly_chart(fig, use_container_width=True, on_select="rerun", key="bar_chart")
+
+                # --- STEP 5: SCATTER PLOT ---
                 st.write("### 🌌 Overall Rank Correlation")
-                
                 fig_scatter = px.scatter(
                     plot_data,
                     x='rank_past',
                     y='rank_curr',
                     hover_name='name',
-                    # CRITICAL: Pass Id as custom_data
                     custom_data=['Id'],
                     color='rank_diff',
                     color_continuous_scale='RdYlGn',
-                    labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'},
-                    title="Comparison (Click a dot to see details)"
+                    labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'}
                 )
-                fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
+                fig_scatter.add_shape(type="line", x0=0, y0=0, x1=plot_data['rank_past'].max(), y1=plot_data['rank_past'].max(),
                                     line=dict(color="Gray", dash="dash"))
-                
-                # 2. RENDER SCATTER CHART & CAPTURE EVENT
-                event_scatter = st.plotly_chart(
-                    fig_scatter, 
-                    use_container_width=True, 
-                    on_select="rerun", 
-                    selection_mode="points",
-                    key="scatter_chart"
-                )
+                # CRITICAL: Explicitly map customdata
+                fig_scatter.update_traces(customdata=plot_data[['Id']])
 
-                # --- CHECK FOR CLICKS (Must be done AFTER charts are rendered) ---
-                
-                # Helper function to safely extract ID from the event dictionary
-                # Updated Helper function to handle Plotly's data structure safely
+                event_scatter = st.plotly_chart(fig_scatter, use_container_width=True, on_select="rerun", key="scatter_chart")
+
+                # --- SELECTION LOGIC ---
                 def get_id_from_event(event):
                     if event and "selection" in event:
                         points = event["selection"].get("points", [])
-                        if len(points) > 0:
-                            first_point = points[0]
-                            
-                            # 1. Try 'customdata' (Plotly's standard key)
-                            # 2. Try 'custom_data' (Streamlit's sometimes-alternate key)
-                            cdata = first_point.get("customdata") or first_point.get("custom_data")
-                            
-                            # Check if cdata exists and is a list/sequence with at least one item
-                            if cdata is not None and len(cdata) > 0:
+                        if points:
+                            # Plotly data is often in 'customdata'
+                            cdata = points[0].get("customdata") or points[0].get("custom_data")
+                            if cdata and len(cdata) > 0:
                                 return cdata[0]
-                                
                     return None
 
-                # Check Bar Chart first
-                selected_id = get_id_from_event(event_bar)
+                # Capture ID from either chart
+                clicked_id = get_id_from_event(event_bar) or get_id_from_event(event_scatter)
                 
-                # If Bar not clicked, check Scatter
-                if not selected_id:
-                    selected_id = get_id_from_event(event_scatter)
+                # Store in session state so it persists during slider moves
+                if clicked_id:
+                    st.session_state['selected_analysis_id'] = clicked_id
 
-
-            # --- STEP 6: DETAILS PANEL (Right Column) ---
+            # --- STEP 6: DETAILS PANEL ---
             with col_details:
                 st.subheader("📝 Item Details")
                 
-                if selected_id:
-                    # Filter original data for this ID
-                    item_history = data[data['Id'] == selected_id].sort_values('snapDate', ascending=False)
+                # Retrieve from session state
+                current_id = st.session_state.get('selected_analysis_id')
+                
+                if current_id:
+                    item_history = data[data['Id'] == current_id].sort_values('snapDate', ascending=False)
                     
                     if not item_history.empty:
-                        selected_data = item_history.iloc[0] # Get most recent row
-                        
-                        from datetime import datetime
+                        selected_data = item_history.iloc[0]
                         today = datetime.now()
 
-                        # --- DETAILS DISPLAY ---
                         with st.container(border=True):
                             img = selected_data.get('Image Url')
-                            if pd.notna(img) and str(img).strip() != '':
+                            if pd.notna(img) and str(img).strip():
                                 st.image(img, use_container_width=True)
                             else:
-                                st.write("No image available")
+                                st.info("No image available")
 
                         with st.container(border=True):
-                            # Name & Link
+                            # Header with Link
                             link = selected_data.get('link', '')
-                            if pd.notna(link) and str(link).strip() != '':
-                                st.markdown(
-                                    f"""<div style='display:inline-flex; align-items:center; gap:8px;'>
-                                        <span style='font-size:1.5rem; font-weight:600; margin:0;'>{selected_data['name']}</span>
-                                        <a href='{str(link)}' target='_blank' rel='noopener noreferrer' style='text-decoration:none; display:inline-flex; align-items:center;'>
-                                            🔗
-                                        </a>
-                                    </div>""",
-                                    unsafe_allow_html=True,
-                                )
+                            name_html = f"<span style='font-size:1.5rem; font-weight:600;'>{selected_data['name']}</span>"
+                            if pd.notna(link) and str(link).strip():
+                                st.markdown(f"{name_html} <a href='{link}' target='_blank'>🔗</a>", unsafe_allow_html=True)
                             else:
-                                st.markdown(f"<span style='font-size:1.25rem; font-weight:600'>{selected_data['name']}</span>", unsafe_allow_html=True)
+                                st.markdown(name_html, unsafe_allow_html=True)
 
                             st.divider()
                             
-                            # ID & Rank
-                            st.write(f"**Asset ID:** `{selected_data['Id']}`")
-                            try:
-                                rank_val = "N/A" if pd.isna(selected_data['rank']) else int(float(selected_data['rank']))
-                            except:
-                                rank_val = selected_data['rank']
-                            st.write(f"**Rank:** <span style='color:#5496ff'>{rank_val}</span>", unsafe_allow_html=True)
+                            # Metrics
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                st.write(f"**Rank:** `{int(selected_data['rank']) if pd.notna(selected_data['rank']) else 'N/A'}`")
+                                st.write(f"**ID:** `{selected_data['Id']}`")
+                            with col_b:
+                                fav = selected_data.get('favoriteCount', 0)
+                                st.write(f"**Favs:** :orange[{int(fav) if pd.notna(fav) else 0}]")
 
-                            # Creator
-                            creator_name = selected_data.get('creatorName', 'N/A')
-                            if pd.isna(creator_name): creator_name = "N/A"
-                            st.write(f"**Creator:** {creator_name}")
-
-                            # Favorites
-                            fav_raw = selected_data.get('favoriteCount', 0)
-                            try:
-                                fav_num = float(fav_raw)
-                                if fav_num >= 1_000_000: fav_display = f"{fav_num/1_000_000:.1f}M"
-                                elif fav_num >= 1_000: fav_display = f"{fav_num/1_000:.0f}k"
-                                else: fav_display = str(int(fav_num))
-                            except:
-                                fav_display = str(fav_raw)
-                            st.write(f"**Favorites:** <span style='color:#ffe373'>{fav_display}</span>", unsafe_allow_html=True)
+                            st.write(f"**Creator:** {selected_data.get('creatorName', 'N/A')}")
                             
-                            # Dates
                             if pd.notna(selected_data.get('Created')):
                                 days_old = (today - pd.to_datetime(selected_data['Created'])).days
-                                date_str = pd.to_datetime(selected_data['Created']).strftime('%d %b %Y')
-                                st.write(f"**Created:** {date_str} ({days_old} days old)")
+                                st.write(f"**Age:** {days_old} days")
                             
-                            st.write(f"**SnapDate:** {pd.to_datetime(selected_data['snapDate']).date()}")
+                            # Add a "Clear" button to reset the view
+                            if st.button("Clear Selection"):
+                                del st.session_state['selected_analysis_id']
+                                st.rerun()
                     else:
-                        st.error("Could not find details for this ID.")
+                        st.warning("Data no longer available for this ID.")
                 else:
-                    st.info("👈 Click a bar or a dot to view details.")
+                    st.info("👈 Click a point on either chart to see bundle details.")
     
 
 
