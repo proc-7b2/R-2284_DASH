@@ -801,10 +801,7 @@ elif page == "Creator W101":
         # if page == "🎨 Creators W101":
         #     show_creators_page(data)
 
-    
-
-    show_creators_page(data)    # The new page
-    # --- 7. CREATOR BUNDLE GROWTH OVER TIME ---
+            # --- 7. CREATOR BUNDLE GROWTH OVER TIME ---
     st.divider()
     st.subheader("📈 Creator Inventory Growth")
 
@@ -841,6 +838,11 @@ elif page == "Creator W101":
         st.plotly_chart(fig_growth, use_container_width=True)
     else:
         st.info("Please select at least one creator to view their growth chart.")
+
+    
+
+    show_creators_page(data)    # The new page
+
 
 
 
