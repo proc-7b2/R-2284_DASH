@@ -701,10 +701,21 @@ elif page == "Creator W101":
     # CRITICAL: Convert these immediately
     data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
     data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
-   
+    c = get_column_names(data)
    
     # Now that it's a datetime, this line (at 436) will work:
     max_dt = data['snapDate'].max().to_pydatetime()
+
+    def get_column_names(df):
+    cols = {col.lower().strip(): col for col in df.columns}
+    return {
+        'name': cols.get('creatorname', 'creatorName'),
+        'id': cols.get('id', 'Id'),
+        'date': cols.get('snapdate', 'snapDate'),
+        'rank': cols.get('rank', 'Rank'),
+        'type': cols.get('creatortype', 'creatorType'),
+        'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
+    }
 
     def show_creators_page(data):
         st.title("🎨 Creators W101")
@@ -806,7 +817,7 @@ elif page == "Creator W101":
     st.subheader("📈 Creator Inventory Growth")
 
     # 1. Let the user choose which creators to compare
-    all_creators = sorted(data[name_col].unique())
+    all_creators = sorted(data[c['name']].unique())
     selected_creators = st.multiselect(
         "Select Creators to track:", 
         options=all_creators, 
@@ -814,23 +825,22 @@ elif page == "Creator W101":
     )
 
     if selected_creators:
-        # 2. Filter data for selected creators
-        growth_data = data[data[name_col].isin(selected_creators)]
+        # Filter for selected creators
+        growth_data = data[data[c['name']].isin(selected_creators)].copy()
 
-        # 3. Group by Date and Creator to count how many IDs they had on each day
-        # We count unique 'Id's per day per creator
-        inventory_trend = growth_data.groupby([date_col, name_col])[id_col].nunique().reset_index()
+        # Grouping logic: Count unique Bundle IDs per Day per Creator
+        inventory_trend = growth_data.groupby([c['date'], c['name']])[c['id']].nunique().reset_index()
         inventory_trend.columns = ['Date', 'Creator', 'Bundle Count']
 
-        # 4. Create the Line Chart
+        # Create Line Chart
         fig_growth = px.line(
             inventory_trend, 
             x='Date', 
             y='Bundle Count', 
             color='Creator',
             markers=True,
-            title="Total Bundles Active in Marketplace",
-            template="plotly_dark"
+            template="plotly_dark",
+            color_discrete_sequence=px.colors.qualitative.Pastel
         )
 
         # 5. Make it look smooth
