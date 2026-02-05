@@ -822,15 +822,21 @@ elif page == "Creator W101":
 
         # 1. Let the user choose which creators to compare
         # Force everything to a string (str) so the sorting doesn't crash
-        all_creators = sorted([str(x) for x in data[c['name']].unique() if pd.notna(x)])    selected_creators = st.multiselect(
+       # Force everything to a string (str) so the sorting doesn't crash
+        all_creators = sorted([str(x) for x in data[c['name']].unique() if pd.notna(x)])
+        selected_creators = st.multiselect(
             "Select Creators to track:", 
             options=all_creators, 
-            default=all_creators[:3] # Default to the first 3
+            default=all_creators[:3] if len(all_creators) >= 3 else all_creators
         )
-
         if selected_creators:
             # Filter for selected creators
-            growth_data = data[data[c['name']].isin(selected_creators)].copy()
+            growth_data = data.copy()
+            growth_data[c['name']] = growth_data[c['name']].astype(str)  # Ensure it's string for filtering
+
+            # Filter the data to include only the selected creators
+
+            growth_data = growth_data[growth_data[c['name']].isin(selected_creators)]
 
             # Grouping logic: Count unique Bundle IDs per Day per Creator
             inventory_trend = growth_data.groupby([c['date'], c['name']])[c['id']].nunique().reset_index()
