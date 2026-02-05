@@ -485,13 +485,14 @@ elif page == "Data Analysis":
             names = data.drop_duplicates('Id').set_index('Id')[['name']]
             plot_data = comparison.join(names).reset_index()
 
-            # --- STEP 4: PLOTLY BAR CHART (Top Movers) ---
             # ... (Previous code remains the same up to Step 3) ...
 
             # --- LAYOUT SETUP: Charts on Left, Details on Right ---
+            # We create the columns first
             col_charts, col_details = st.columns([2, 1], gap="medium")
 
-            selected_id = None # Variable to store the clicked Asset ID
+            # Initialize selected_id to None at the start
+            selected_id = None 
 
             with col_charts:
                 # --- STEP 4: PLOTLY BAR CHART (Top Movers) ---
@@ -510,7 +511,7 @@ elif page == "Data Analysis":
                     color='rank_diff',
                     color_continuous_scale='RdYlGn',
                     labels={'rank_diff': 'Rank Change', 'name': 'Bundle Name'},
-                    # CRITICAL: Pass ID as custom data so we can retrieve it on click
+                    # CRITICAL: Pass Id as custom_data
                     custom_data=['Id'], 
                     hover_data=['rank_past', 'rank_curr'],
                     text_auto='.0f'
@@ -518,7 +519,7 @@ elif page == "Data Analysis":
                 
                 fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=600)
                 
-                # ENABLE SELECTION HERE
+                # 1. RENDER BAR CHART & CAPTURE EVENT
                 event_bar = st.plotly_chart(
                     fig, 
                     use_container_width=True, 
@@ -535,7 +536,7 @@ elif page == "Data Analysis":
                     x='rank_past',
                     y='rank_curr',
                     hover_name='name',
-                    # CRITICAL: Pass ID as custom data
+                    # CRITICAL: Pass Id as custom_data
                     custom_data=['Id'],
                     color='rank_diff',
                     color_continuous_scale='RdYlGn',
@@ -545,7 +546,7 @@ elif page == "Data Analysis":
                 fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
                                     line=dict(color="Gray", dash="dash"))
                 
-                # ENABLE SELECTION HERE
+                # 2. RENDER SCATTER CHART & CAPTURE EVENT
                 event_scatter = st.plotly_chart(
                     fig_scatter, 
                     use_container_width=True, 
@@ -554,32 +555,45 @@ elif page == "Data Analysis":
                     key="scatter_chart"
                 )
 
-                # --- CHECK FOR CLICKS ---
-                # Check Bar Chart Click
-                if len(event_bar.selection.points) > 0:
-                    # Retrieve the ID from custom_data (index 0)
-                    selected_id = event_bar.selection.points[0].custom_data[0]
+                # --- CHECK FOR CLICKS (Must be done AFTER charts are rendered) ---
                 
-                # Check Scatter Chart Click (if Bar not clicked)
-                elif len(event_scatter.selection.points) > 0:
-                    selected_id = event_scatter.selection.points[0].custom_data[0]
+                # Helper function to safely extract ID from the event dictionary
+                def get_id_from_event(event):
+                    # Check if event exists and has selection data
+                    if event and "selection" in event:
+                        # Check if any points were clicked
+                        if "points" in event["selection"] and len(event["selection"]["points"]) > 0:
+                            first_point = event["selection"]["points"][0]
+                            # Try 'customdata' (standard Plotly) or 'custom_data' (fallback)
+                            if "customdata" in first_point:
+                                return first_point["customdata"][0]
+                            if "custom_data" in first_point:
+                                return first_point["custom_data"][0]
+                    return None
+
+                # Check Bar Chart first
+                selected_id = get_id_from_event(event_bar)
+                
+                # If Bar not clicked, check Scatter
+                if not selected_id:
+                    selected_id = get_id_from_event(event_scatter)
+
 
             # --- STEP 6: DETAILS PANEL (Right Column) ---
             with col_details:
                 st.subheader("📝 Item Details")
                 
                 if selected_id:
-                    # 1. Get the LATEST snapshot of data for this ID to ensure up-to-date info
-                    # We filter the ORIGINAL 'data' dataframe, not the aggregated one
+                    # Filter original data for this ID
                     item_history = data[data['Id'] == selected_id].sort_values('snapDate', ascending=False)
                     
                     if not item_history.empty:
-                        selected_data = item_history.iloc[0] # Get the most recent row
+                        selected_data = item_history.iloc[0] # Get most recent row
                         
                         from datetime import datetime
                         today = datetime.now()
 
-                        # --- RENDER YOUR DETAILS SNIPPET ---
+                        # --- DETAILS DISPLAY ---
                         with st.container(border=True):
                             img = selected_data.get('Image Url')
                             if pd.notna(img) and str(img).strip() != '':
@@ -588,16 +602,14 @@ elif page == "Data Analysis":
                                 st.write("No image available")
 
                         with st.container(border=True):
-                            # Link Logic
+                            # Name & Link
                             link = selected_data.get('link', '')
                             if pd.notna(link) and str(link).strip() != '':
                                 st.markdown(
                                     f"""<div style='display:inline-flex; align-items:center; gap:8px;'>
                                         <span style='font-size:1.5rem; font-weight:600; margin:0;'>{selected_data['name']}</span>
                                         <a href='{str(link)}' target='_blank' rel='noopener noreferrer' style='text-decoration:none; display:inline-flex; align-items:center;'>
-                                            <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' aria-hidden='true'>
-                                                <path d='M5 12h14M13 5l7 7-7 7' stroke='#5496ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
-                                            </svg>
+                                            🔗
                                         </a>
                                     </div>""",
                                     unsafe_allow_html=True,
@@ -607,32 +619,20 @@ elif page == "Data Analysis":
 
                             st.divider()
                             
-                            # Rank Logic
+                            # ID & Rank
+                            st.write(f"**Asset ID:** `{selected_data['Id']}`")
                             try:
                                 rank_val = "N/A" if pd.isna(selected_data['rank']) else int(float(selected_data['rank']))
                             except:
                                 rank_val = selected_data['rank']
                             st.write(f"**Rank:** <span style='color:#5496ff'>{rank_val}</span>", unsafe_allow_html=True)
-                            st.write(f"**Asset ID:** `{selected_data['Id']}`")
 
-                            # Creator Logic
+                            # Creator
                             creator_name = selected_data.get('creatorName', 'N/A')
                             if pd.isna(creator_name): creator_name = "N/A"
-                            
-                            raw_verified = selected_data.get('creatorHasVerifiedBadge', False)
-                            # Simple verification check
-                            verified = str(raw_verified).lower() in ['true', '1', '1.0', 'yes'] or raw_verified is True
-                            
-                            creator_type = selected_data.get('creatorType', '')
-                            creator_type_label = f" <span style='color:#9b9b9b'>({str(creator_type).capitalize()})</span>" if pd.notna(creator_type) and creator_type != '' else ""
-                            
-                            verified_badge = ""
-                            if verified:
-                                verified_badge = "<img src='https://en.help.roblox.com/hc/article_attachments/41933934939156' style='width:18px;height:18px;display:inline-block;vertical-align:middle;margin-left:6px;' title='Verified'>"
-                            
-                            st.write(f"**Creator:** <span style='color:#70cbff'>{creator_name}</span>{verified_badge}{creator_type_label}", unsafe_allow_html=True)
+                            st.write(f"**Creator:** {creator_name}")
 
-                            # Favorites Logic
+                            # Favorites
                             fav_raw = selected_data.get('favoriteCount', 0)
                             try:
                                 fav_num = float(fav_raw)
@@ -641,10 +641,9 @@ elif page == "Data Analysis":
                                 else: fav_display = str(int(fav_num))
                             except:
                                 fav_display = str(fav_raw)
-                                
                             st.write(f"**Favorites:** <span style='color:#ffe373'>{fav_display}</span>", unsafe_allow_html=True)
                             
-                            # Dates Logic
+                            # Dates
                             if pd.notna(selected_data.get('Created')):
                                 days_old = (today - pd.to_datetime(selected_data['Created'])).days
                                 date_str = pd.to_datetime(selected_data['Created']).strftime('%d %b %Y')
@@ -654,12 +653,7 @@ elif page == "Data Analysis":
                     else:
                         st.error("Could not find details for this ID.")
                 else:
-                    st.info("👈 Click a bar or a dot in the charts to view details here.")
-
-
-
-
-
+                    st.info("👈 Click a bar or a dot to view details.")
     
 
 
