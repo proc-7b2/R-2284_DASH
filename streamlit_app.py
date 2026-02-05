@@ -711,6 +711,16 @@ elif page == "Creator W101":
         
         # --- SAFETY CHECK: Find the correct Rank column ---
         # This automatically finds if it's 'Rank', 'rank', or 'RANK'
+        # --- 0. CHART CONTROLS ---
+        st.sidebar.subheader("📈 Chart Settings")
+        data_limit = st.sidebar.slider(
+            "Number of Creators to show", 
+            min_value=5, 
+            max_value=100, 
+            value=15, 
+            step=5,
+            help="Slide to see more or fewer creators in the bar charts and leaderboard."
+        )
         cols = {col.lower(): col for col in data.columns}
         rank_col = cols.get('rank', 'Rank')  # Defaults to 'Rank' if not found
         verified_col = cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
@@ -778,96 +788,18 @@ elif page == "Creator W101":
             st.plotly_chart(fig_type, use_container_width=True)
 
         # --- 5. TOP CREATORS ---
-        st.subheader("🏆 Top Creators (Most Bundles)")
-        top_creators = creator_stats.sort_values('Bundle Count', ascending=False).head(10)
+        st.subheader(f"🏆 Top {data_limit} Creators (Most Bundles)")
+        top_creators = creator_stats.sort_values('Bundle Count', ascending=False).head(data_limit)
         fig_bar = px.bar(top_creators, x=name_col, y='Bundle Count', 
                         color='Bundle Count', text_auto=True, template="plotly_dark")
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # --- 6. LEADERBOARD ---
-        st.divider()
-        st.header("🏆 Creator Power Leaderboard")
-        
-        # Sorting by Bundle Count as a baseline
-        leaderboard_df = creator_stats.sort_values('Bundle Count', ascending=False)
-        
-        st.dataframe(
-            leaderboard_df[[name_col, 'Bundle Count', rank_col, 'Status']],
-            column_config={
-                name_col: "Creator",
-                "Bundle Count": st.column_config.NumberColumn("Total Bundles", format="%d 📦"),
-                rank_col: st.column_config.NumberColumn("Avg Rank", format="%.1f ⭐"),
-                "Status": "Verified?"
-            },
-            use_container_width=True,
-            hide_index=True
-        )
-
+       
         # TO CALL THIS IN YOUR MAIN APP:
         # if page == "🎨 Creators W101":
         #     show_creators_page(data)
 
-    def show_leaderboard(data):
-        st.header("🏆 Creator Power Leaderboard")
-        
-        # 1. Filter for the most recent data only
-        latest_date = data['snapDate'].max()
-        current_market = data[data['snapDate'] == latest_date].copy()
-
-        # 2. Group by Creator and calculate stats
-        leaderboard = current_market.groupby('creatorName').agg({
-            'Id': 'count',                 # Total bundles they have
-            'Rank': 'mean',                # Average rank across all their bundles
-            'creatorHasVerifiedBadge': 'first'
-        }).reset_index()
-
-        # 3. Calculate "Top 50 Presence"
-        # We count how many bundles each creator has with a rank <= 50
-        top_50_counts = current_market[current_market['Rank'] <= 50].groupby('creatorName')['Id'].count()
-        leaderboard['Top 50 Hits'] = leaderboard['creatorName'].map(top_50_counts).fillna(0).astype(int)
-
-        # 4. Clean up and Sort
-        leaderboard.columns = ['Creator', 'Total Bundles', 'Avg Rank', 'Verified', 'Top 50 Hits']
-        
-        # Sorting by "Top 50 Hits" first, then "Avg Rank" (Lower is better)
-        leaderboard = leaderboard.sort_values(by=['Top 50 Hits', 'Avg Rank'], ascending=[False, True])
-
-        # 5. Add a "Rank Score" for the leaderboard display
-        leaderboard['Avg Rank'] = leaderboard['Avg Rank'].round(1)
-        
-        # --- DISPLAY TABLE ---
-        st.dataframe(
-            leaderboard,
-            column_config={
-                "Creator": st.column_config.TextColumn("Creator Name"),
-                "Verified": st.column_config.CheckboxColumn("✅"),
-                "Avg Rank": st.column_config.NumberColumn("Avg Rank", help="Lower is better!"),
-                "Top 50 Hits": st.column_config.ProgressColumn(
-                    "Market Power", 
-                    help="How many bundles are in the Top 50",
-                    min_value=0, 
-                    max_value=int(leaderboard['Top 50 Hits'].max() + 1),
-                    format="%d 🔥"
-                )
-            },
-            hide_index=True,
-            use_container_width=True
-        )
-
-        # 6. Creator Heatmap (Visualizing the Top 10)
-        st.subheader("📊 Dominance Visualization")
-        fig_heat = px.scatter(
-            leaderboard.head(15), 
-            x="Avg Rank", 
-            y="Total Bundles", 
-            size="Top 50 Hits", 
-            color="Creator",
-            hover_name="Creator",
-            title="Creator Strength: Volume vs. Quality"
-        )
-        # Flipping the X-axis because in Ranking, 1 is better than 100
-        fig_heat.update_xaxes(autorange="reversed") 
-        st.plotly_chart(fig_heat, use_container_width=True)
+    
 
     show_creators_page(data)    # The new page
     
