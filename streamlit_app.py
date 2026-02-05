@@ -486,53 +486,175 @@ elif page == "Data Analysis":
             plot_data = comparison.join(names).reset_index()
 
             # --- STEP 4: PLOTLY BAR CHART (Top Movers) ---
-            st.write("### 🚀 Top Movers (Rank Change)")
-            
-            # Filter for top 15 climbers and top 15 fallers
-            top_n = st.slider("Number of bundles to show in bar chart", 5, 50, 15)
-            # Then update your filtering line:
-            top_climbers = plot_data.sort_values('rank_diff', ascending=False).head(top_n)
-            top_fallers = plot_data.sort_values('rank_diff', ascending=True).head(top_n)
-            movers = pd.concat([top_climbers, top_fallers])
+            # ... (Previous code remains the same up to Step 3) ...
 
-            fig = px.bar(
-                movers,
-                x='rank_diff',
-                y='name',
-                orientation='h',
-                color='rank_diff',
-                color_continuous_scale='RdYlGn', # Red for negative, Green for positive
-                labels={'rank_diff': 'Rank Change (Pos = Climbing)', 'name': 'Bundle Name'},
-                custom_data=['Id'],
-                hover_data=['rank_past', 'rank_curr'],
-                text_auto='.0f'
+            # --- LAYOUT SETUP: Charts on Left, Details on Right ---
+            col_charts, col_details = st.columns([2, 1], gap="medium")
+
+            selected_id = None # Variable to store the clicked Asset ID
+
+            with col_charts:
+                # --- STEP 4: PLOTLY BAR CHART (Top Movers) ---
+                st.write("### 🚀 Top Movers (Rank Change)")
+                
+                top_n = st.slider("Number of bundles to show", 5, 50, 15)
+                top_climbers = plot_data.sort_values('rank_diff', ascending=False).head(top_n)
+                top_fallers = plot_data.sort_values('rank_diff', ascending=True).head(top_n)
+                movers = pd.concat([top_climbers, top_fallers])
+
+                fig = px.bar(
+                    movers,
+                    x='rank_diff',
+                    y='name',
+                    orientation='h',
+                    color='rank_diff',
+                    color_continuous_scale='RdYlGn',
+                    labels={'rank_diff': 'Rank Change', 'name': 'Bundle Name'},
+                    # CRITICAL: Pass ID as custom data so we can retrieve it on click
+                    custom_data=['Id'], 
+                    hover_data=['rank_past', 'rank_curr'],
+                    text_auto='.0f'
                 )
-            
-            fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=600)
-            st.plotly_chart(fig, use_container_width=True)
+                
+                fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=600)
+                
+                # ENABLE SELECTION HERE
+                event_bar = st.plotly_chart(
+                    fig, 
+                    use_container_width=True, 
+                    on_select="rerun", 
+                    selection_mode="points",
+                    key="bar_chart"
+                )
 
-            # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
-            st.write("### 🌌 Overall Rank Correlation")
-           
-            fig_scatter = px.scatter(
-                plot_data,
-                x='rank_past',
-                y='rank_curr',
-                hover_name='name',
-                color='rank_diff',
-                color_continuous_scale='RdYlGn',
-                labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'},
-                title="Comparison of All Bundles (Items below the diagonal line are Climbing)"
-            )
-            # Add a diagonal line (Items below this line are improving)
-            fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
-                                line=dict(color="Gray", dash="dash"))
-            
-            st.plotly_chart(fig_scatter, use_container_width=True)
-            
-        else:
-            st.error("No valid dates found in data. Please check your 'snapDate' column.")
+                # --- STEP 5: OVERALL DISTRIBUTION (Scatter Plot) ---
+                st.write("### 🌌 Overall Rank Correlation")
+                
+                fig_scatter = px.scatter(
+                    plot_data,
+                    x='rank_past',
+                    y='rank_curr',
+                    hover_name='name',
+                    # CRITICAL: Pass ID as custom data
+                    custom_data=['Id'],
+                    color='rank_diff',
+                    color_continuous_scale='RdYlGn',
+                    labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'},
+                    title="Comparison (Click a dot to see details)"
+                )
+                fig_scatter.add_shape(type="line", x0=0, y0=0, x1=max(plot_data['rank_past']), y1=max(plot_data['rank_past']),
+                                    line=dict(color="Gray", dash="dash"))
+                
+                # ENABLE SELECTION HERE
+                event_scatter = st.plotly_chart(
+                    fig_scatter, 
+                    use_container_width=True, 
+                    on_select="rerun", 
+                    selection_mode="points",
+                    key="scatter_chart"
+                )
 
+                # --- CHECK FOR CLICKS ---
+                # Check Bar Chart Click
+                if len(event_bar.selection.points) > 0:
+                    # Retrieve the ID from custom_data (index 0)
+                    selected_id = event_bar.selection.points[0].custom_data[0]
+                
+                # Check Scatter Chart Click (if Bar not clicked)
+                elif len(event_scatter.selection.points) > 0:
+                    selected_id = event_scatter.selection.points[0].custom_data[0]
+
+            # --- STEP 6: DETAILS PANEL (Right Column) ---
+            with col_details:
+                st.subheader("📝 Item Details")
+                
+                if selected_id:
+                    # 1. Get the LATEST snapshot of data for this ID to ensure up-to-date info
+                    # We filter the ORIGINAL 'data' dataframe, not the aggregated one
+                    item_history = data[data['Id'] == selected_id].sort_values('snapDate', ascending=False)
+                    
+                    if not item_history.empty:
+                        selected_data = item_history.iloc[0] # Get the most recent row
+                        
+                        from datetime import datetime
+                        today = datetime.now()
+
+                        # --- RENDER YOUR DETAILS SNIPPET ---
+                        with st.container(border=True):
+                            img = selected_data.get('Image Url')
+                            if pd.notna(img) and str(img).strip() != '':
+                                st.image(img, use_container_width=True)
+                            else:
+                                st.write("No image available")
+
+                        with st.container(border=True):
+                            # Link Logic
+                            link = selected_data.get('link', '')
+                            if pd.notna(link) and str(link).strip() != '':
+                                st.markdown(
+                                    f"""<div style='display:inline-flex; align-items:center; gap:8px;'>
+                                        <span style='font-size:1.5rem; font-weight:600; margin:0;'>{selected_data['name']}</span>
+                                        <a href='{str(link)}' target='_blank' rel='noopener noreferrer' style='text-decoration:none; display:inline-flex; align-items:center;'>
+                                            <svg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' aria-hidden='true'>
+                                                <path d='M5 12h14M13 5l7 7-7 7' stroke='#5496ff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/>
+                                            </svg>
+                                        </a>
+                                    </div>""",
+                                    unsafe_allow_html=True,
+                                )
+                            else:
+                                st.markdown(f"<span style='font-size:1.25rem; font-weight:600'>{selected_data['name']}</span>", unsafe_allow_html=True)
+
+                            st.divider()
+                            
+                            # Rank Logic
+                            try:
+                                rank_val = "N/A" if pd.isna(selected_data['rank']) else int(float(selected_data['rank']))
+                            except:
+                                rank_val = selected_data['rank']
+                            st.write(f"**Rank:** <span style='color:#5496ff'>{rank_val}</span>", unsafe_allow_html=True)
+                            st.write(f"**Asset ID:** `{selected_data['Id']}`")
+
+                            # Creator Logic
+                            creator_name = selected_data.get('creatorName', 'N/A')
+                            if pd.isna(creator_name): creator_name = "N/A"
+                            
+                            raw_verified = selected_data.get('creatorHasVerifiedBadge', False)
+                            # Simple verification check
+                            verified = str(raw_verified).lower() in ['true', '1', '1.0', 'yes'] or raw_verified is True
+                            
+                            creator_type = selected_data.get('creatorType', '')
+                            creator_type_label = f" <span style='color:#9b9b9b'>({str(creator_type).capitalize()})</span>" if pd.notna(creator_type) and creator_type != '' else ""
+                            
+                            verified_badge = ""
+                            if verified:
+                                verified_badge = "<img src='https://en.help.roblox.com/hc/article_attachments/41933934939156' style='width:18px;height:18px;display:inline-block;vertical-align:middle;margin-left:6px;' title='Verified'>"
+                            
+                            st.write(f"**Creator:** <span style='color:#70cbff'>{creator_name}</span>{verified_badge}{creator_type_label}", unsafe_allow_html=True)
+
+                            # Favorites Logic
+                            fav_raw = selected_data.get('favoriteCount', 0)
+                            try:
+                                fav_num = float(fav_raw)
+                                if fav_num >= 1_000_000: fav_display = f"{fav_num/1_000_000:.1f}M"
+                                elif fav_num >= 1_000: fav_display = f"{fav_num/1_000:.0f}k"
+                                else: fav_display = str(int(fav_num))
+                            except:
+                                fav_display = str(fav_raw)
+                                
+                            st.write(f"**Favorites:** <span style='color:#ffe373'>{fav_display}</span>", unsafe_allow_html=True)
+                            
+                            # Dates Logic
+                            if pd.notna(selected_data.get('Created')):
+                                days_old = (today - pd.to_datetime(selected_data['Created'])).days
+                                date_str = pd.to_datetime(selected_data['Created']).strftime('%d %b %Y')
+                                st.write(f"**Created:** {date_str} ({days_old} days old)")
+                            
+                            st.write(f"**SnapDate:** {pd.to_datetime(selected_data['snapDate']).date()}")
+                    else:
+                        st.error("Could not find details for this ID.")
+                else:
+                    st.info("👈 Click a bar or a dot in the charts to view details here.")
 
 
 
