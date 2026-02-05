@@ -706,10 +706,6 @@ elif page == "Creator W101":
     # Now that it's a datetime, this line (at 436) will work:
     max_dt = data['snapDate'].max().to_pydatetime()
 
-    st.divider()
-    st.subheader("👷 Creator W101")
-
-    st.info("Creator W101 content coming soon!")
 
     def show_creators_page(data):
         st.title("🎨 Creators W101")
