@@ -558,17 +558,22 @@ elif page == "Data Analysis":
                 # --- CHECK FOR CLICKS (Must be done AFTER charts are rendered) ---
                 
                 # Helper function to safely extract ID from the event dictionary
+                # Updated Helper function to handle Plotly's data structure safely
                 def get_id_from_event(event):
-                    # Check if event exists and has selection data
                     if event and "selection" in event:
-                        # Check if any points were clicked
-                        if "points" in event["selection"] and len(event["selection"]["points"]) > 0:
-                            first_point = event["selection"]["points"][0]
-                            # Try 'customdata' (standard Plotly) or 'custom_data' (fallback)
-                            if "customdata" in first_point:
-                                return first_point["customdata"][0]
-                            if "custom_data" in first_point:
-                                return first_point["custom_data"][0]
+                        points = event["selection"].get("points", [])
+                        if len(points) > 0:
+                            first_point = points[0]
+                            
+                            # Plotly usually uses 'customdata' (one word)
+                            # It returns a list of the values you passed in px.bar(custom_data=[...])
+                            cdata = first_point.get("customdata") or first_point.get("custom_data")
+                            
+                            if cdata is not None:
+                                # If it's a list/array, take the first element (the ID)
+                                if isinstance(cdata, list) or hasattr(cdata, "__getitem__"):
+                                    return cdata[0]
+                                return cdata
                     return None
 
                 # Check Bar Chart first
