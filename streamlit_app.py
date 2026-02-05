@@ -797,7 +797,7 @@ elif page == "Creator W101":
             fig_pie.update_traces(
                 textposition='inside', 
                 textinfo='percent+label', 
-                insidetextfont=dict(size=22, color='white') # Made size 22 for extra impact
+                insidetextfont=dict(size=22, color='Black') # Made size 22 for extra impact
             )
             fig_pie.update_layout(
                 font=dict(size=16),
