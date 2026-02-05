@@ -566,80 +566,95 @@ elif page == "Data Analysis":
 
             # --- STEP 6: DETAILS PANEL ---
             # --- STEP 6: DETAILS PANEL (Right Column) ---
+            # --- STEP 6: DETAILS PANEL (Right Column) ---
             with col_details:
                 st.subheader("📝 Item Details")
                 
-                # Retrieve the selected ID from session state (set in the previous logic)
                 current_id = st.session_state.get('selected_analysis_id')
                 
                 if current_id:
-                    # 1. Filter original data for this ID to get full history
                     item_history = data[data['Id'] == current_id].sort_values('snapDate')
                     
                     if not item_history.empty:
-                        # Get the most recent record for the profile info
+                        # We'll call this selected_data to keep it consistent
                         selected_data = item_history.iloc[-1] 
                         
-                        # --- PROFILE SECTION ---
+                        # --- 1. PROFILE IMAGE ---
                         with st.container(border=True):
                             img = selected_data.get('Image Url')
                             if pd.notna(img) and str(img).strip():
                                 st.image(img, use_container_width=True)
                             
-                            # Header with Link
+                            # Header Name & Link
                             link = selected_data.get('link', '')
-                            name_html = f"<div style='font-size:1.3rem; font-weight:700;'>{selected_data['name']}</div>"
+                            name_val = selected_data['name']
                             if pd.notna(link) and str(link).strip():
-                                st.markdown(f"{name_html} <a href='{link}' target='_blank' style='text-decoration:none;'>🔗 Open Link</a>", unsafe_allow_html=True)
+                                st.markdown(f"### {name_val} <a href='{link}' target='_blank' style='text-decoration:none; font-size:1.2rem;'>🔗</a>", unsafe_allow_html=True)
                             else:
-                                st.markdown(name_html, unsafe_allow_html=True)
+                                st.write(f"### {name_val}")
 
-                        # --- RANK HISTORY CHART ---
+                        # --- 2. CREATOR & VERIFIED BADGE SECTION ---
+                        # Your logic for verification
+                        creator_name = selected_data.get('creatorName', 'N/A')
+                        if pd.isna(creator_name): creator_name = "N/A"
+                        
+                        raw_verified = selected_data.get('creatorHasVerifiedBadge', None)
+                        verified = False
+                        if pd.notna(raw_verified):
+                            s = str(raw_verified).strip().lower()
+                            verified = s in ('true', '1', '1.0', 'yes', 'y', 't') or (isinstance(raw_verified, (int, float)) and raw_verified != 0)
+
+                        creator_type = selected_data.get('creatorType', '')
+                        creator_type_label = f" <span style='color:#9b9b9b; font-size:0.85rem;'>({str(creator_type).capitalize()})</span>" if pd.notna(creator_type) and creator_type != '' else ""
+
+                        verified_badge = ""
+                        if verified:
+                            # Using the Roblox verified badge icon
+                            verified_badge = "<img src='https://en.help.roblox.com/hc/article_attachments/41933934939156' style='width:16px; height:16px; display:inline-block; vertical-align:middle; margin-left:4px; margin-bottom:3px;' alt='verified'>"
+                        
+                        # Displaying the combined line
+                        st.markdown(f"**Creator:** <span style='color:#70cbff; font-weight:500;'>{creator_name}</span>{verified_badge}{creator_type_label}", unsafe_allow_html=True)
+
+                        # --- 3. RANK HISTORY CHART ---
+                        st.write("---")
                         st.write("### 📈 Rank History")
                         
-                        # Create the line chart
                         fig_history = px.line(
                             item_history,
                             x='snapDate',
                             y='rank',
                             markers=True,
-                            template="plotly_dark", # Matches most dashboard vibes
                             labels={'rank': 'Rank', 'snapDate': 'Date'},
-                            title=f"Trend for ID: {current_id}"
+                            template="plotly_dark"
                         )
 
-                        # CRITICAL: Invert Y-axis because Rank 1 is "Higher" than Rank 10
+                        # Invert Y-axis so Rank 1 is at the top
                         fig_history.update_yaxes(autorange="reversed", gridcolor='rgba(255,255,255,0.1)')
-                        fig_history.update_xaxes(gridcolor='rgba(255,255,255,0.1)')
-                        
                         fig_history.update_layout(
-                            height=300, 
-                            margin=dict(l=0, r=0, t=30, b=0),
+                            height=250, 
+                            margin=dict(l=0, r=0, t=10, b=0),
                             paper_bgcolor='rgba(0,0,0,0)',
                             plot_bgcolor='rgba(0,0,0,0)'
                         )
                         
                         st.plotly_chart(fig_history, use_container_width=True, config={'displayModeBar': False})
 
-                        # --- STATS GRID ---
+                        # --- 4. QUICK STATS ---
                         st.divider()
                         col_a, col_b = st.columns(2)
                         with col_a:
                             st.metric("Current Rank", f"#{int(selected_data['rank'])}")
-                            st.write(f"**ID:** `{selected_data['Id']}`")
                         with col_b:
                             fav = selected_data.get('favoriteCount', 0)
                             st.metric("Favorites", f"{int(fav):,}" if pd.notna(fav) else "0")
-                        
-                        st.write(f"**Creator:** {selected_data.get('creatorName', 'N/A')}")
                         
                         if st.button("🗑️ Clear Selection", use_container_width=True):
                             st.session_state['selected_analysis_id'] = None
                             st.rerun()
                     else:
-                        st.error("Historical data found, but it appears to be empty.")
+                        st.error("No historical data found for this item.")
                 else:
-                    st.info("👈 Click a bar or a dot on the charts to see the full rank history and details.")
+                    st.info("👈 Click a point on the charts to see the verified creator and rank trend.")
     
 
 
