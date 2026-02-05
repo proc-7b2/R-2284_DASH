@@ -805,7 +805,7 @@ elif page == "Creator W101":
                 fig_pie.update_traces(
                     textposition='inside', 
                     textinfo='percent+label', 
-                    insidetextfont=dict(size=14, color='white'), 
+                    insidetextfont=dict(size=14, color='#ffffff'), 
                     marker=dict(line=dict(color='#111111', width=2)) # Adds a subtle border
                 )
                 
