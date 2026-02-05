@@ -706,43 +706,46 @@ elif page == "Creator W101":
     # Now that it's a datetime, this line (at 436) will work:
     max_dt = data['snapDate'].max().to_pydatetime()
 
-
     def show_creators_page(data):
         st.title("🎨 Creators W101")
         st.markdown("Track creator dominance, verification trends, and market presence.")
 
-        # --- 1. PREPARE CREATOR DATA ---
-        # Get the most recent snapshot for each bundle to avoid double-counting
-        # --- 1. PREPARE CREATOR DATA ---
-        # Get the latest data for each bundle
-        latest_snapshot = data.sort_values('snapDate').groupby('Id').last().reset_index()
+        # --- 1. DATA PREPARATION (Cleaning & Normalizing) ---
+        # Sort by date so .last() gets the most recent data
+        data_sorted = data.sort_values('snapDate')
+        latest_snapshot = data_sorted.groupby('Id').last().reset_index()
 
-        # FORCE the verified column to be a string and clean it up for checking
+        # Create a reliable boolean column for verification
         latest_snapshot['is_verified_bool'] = latest_snapshot['creatorHasVerifiedBadge'].apply(
             lambda x: str(x).strip().lower() in ['true', '1', '1.0', 'yes', 't']
         )
 
-        # Group by Creator
+        # Group by Creator to build the Stats table
         creator_stats = latest_snapshot.groupby('creatorName').agg({
             'Id': 'count',
             'creatorType': 'first',
-            'is_verified_bool': 'max' # If they have 1 verified bundle, the creator is verified
+            'is_verified_bool': 'max',      # Verified if at least one bundle is verified
+            'Rank': 'mean'                  # Average Rank across all their bundles
         }).rename(columns={'Id': 'Bundle Count'}).reset_index()
 
-        # --- 2. UPDATED KEY METRICS ---
+        # Create a clean "Status" column for charts
+        creator_stats['Status'] = creator_stats['is_verified_bool'].apply(
+            lambda x: 'Verified' if x else 'Unverified'
+        )
+
+        # --- 2. KEY METRICS (KPIs) ---
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.metric("Total Creators", len(creator_stats))
         with c2:
-            # Use our new boolean column
-            verified_count = creator_stats['is_verified_bool'].sum()
-            st.metric("Verified Creators", int(verified_count))
-        # ... rest of your columns ...
+            verified_total = creator_stats['is_verified_bool'].sum()
+            st.metric("Verified Creators", int(verified_total))
+        with c3:
             group_count = (creator_stats['creatorType'].str.lower() == 'group').sum()
-            st.metric("Groups", group_count)
+            st.metric("Groups", int(group_count))
         with c4:
             user_count = (creator_stats['creatorType'].str.lower() == 'user').sum()
-            st.metric("Individual Users", user_count)
+            st.metric("Individual Users", int(user_count))
 
         st.divider()
 
@@ -751,9 +754,8 @@ elif page == "Creator W101":
 
         with col_a:
             st.subheader("Verified vs Unverified")
-            # Fix verification labels for the chart
-            creator_stats['Status'] = creator_stats['creatorHasVerifiedBadge'].apply(lambda x: 'Verified' if str(x).lower() in ['true', '1'] else 'Unverified')
-            fig_pie = px.pie(creator_stats, names='Status', hole=0.4, color='Status',
+            fig_pie = px.pie(creator_stats, names='Status', hole=0.4, 
+                            color='Status',
                             color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'})
             st.plotly_chart(fig_pie, use_container_width=True)
 
@@ -761,23 +763,27 @@ elif page == "Creator W101":
             st.subheader("Creator Type Distribution")
             fig_type = px.pie(creator_stats, names='creatorType', hole=0.4, 
                             color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_type, use_container_width=True)
+        st.plotly_chart(fig_type, use_container_width=True)
 
         # --- 4. TOP CREATORS BY BUNDLE COUNT ---
         st.subheader("🏆 Top Creators (Most Bundles)")
         top_creators = creator_stats.sort_values('Bundle Count', ascending=False).head(10)
         fig_bar = px.bar(top_creators, x='creatorName', y='Bundle Count', 
-                        color='Bundle Count', text_auto=True, template="plotly_dark")
+                        color='Bundle Count', text_auto=True, 
+                        color_continuous_scale='Viridis', template="plotly_dark")
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # --- 5. APPEARING & DISAPPEARING (The "Heat" Logic) ---
+        # --- 5. MARKET TRENDS (Appearing/Disappearing) ---
+        st.divider()
         st.subheader("🔄 Market Presence (Last 7 Days)")
-        # Logic: Compare IDs from 7 days ago vs today
-        seven_days_ago = data['snapDate'].max() - pd.Timedelta(days=7)
-        old_creators = set(data[data['snapDate'] <= seven_days_ago]['creatorName'].unique())
-        new_creators = set(data[data['snapDate'] > seven_days_ago]['creatorName'].unique())
         
-        appearing = new_creators - old_creators
+        max_date = data['snapDate'].max()
+        seven_days_ago = max_date - pd.Timedelta(days=7)
+        
+        old_creators = set(data[data['snapDate'] <= seven_days_ago]['creatorName'].unique())
+        new_creators_current = set(data[data['snapDate'] > seven_days_ago]['creatorName'].unique())
+        
+        appearing = new_creators_current - old_creators
         disappearing = old_creators - new_creators
 
         m1, m2 = st.columns(2)
@@ -785,8 +791,52 @@ elif page == "Creator W101":
         m2.error(f"📉 **Creators Left:** {len(disappearing)}")
         
         if len(appearing) > 0:
-            with st.expander("View New Creators"):
-                st.write(", ".join(list(appearing)[:20]) + ("..." if len(appearing) > 20 else ""))
+            with st.expander("🔍 View New Creators List"):
+                st.write(", ".join(list(appearing)))
+
+        # --- 6. POWER LEADERBOARD WITH TRENDS ---
+        st.divider()
+        st.header("🏆 Creator Power Leaderboard")
+
+        # Trend Logic: Compare today's avg rank vs yesterday's
+        dates = sorted(data['snapDate'].unique())
+        if len(dates) >= 2:
+            latest_day = dates[-1]
+            prev_day = dates[-2]
+
+            avg_rank_today = data[data['snapDate'] == latest_day].groupby('creatorName')['Rank'].mean()
+            avg_rank_yesterday = data[data['snapDate'] == prev_day].groupby('creatorName')['Rank'].mean()
+            
+            # Calculate Rank Change (Previous - Today, because lower rank is better)
+            creator_stats['Change'] = creator_stats['creatorName'].map(avg_rank_yesterday - avg_rank_today)
+            
+            def format_trend(val):
+                if pd.isna(val) or val == 0: return "➖"
+                return f"🔼 {val:.1f}" if val > 0 else f"🔽 {abs(val):.1f}"
+            
+            creator_stats['Trend'] = creator_stats['Change'].apply(format_trend)
+        else:
+            creator_stats['Trend'] = "➖"
+
+        # Final Leaderboard Display
+        leaderboard_df = creator_stats.sort_values('Bundle Count', ascending=False)
+        
+        st.dataframe(
+            leaderboard_df[['creatorName', 'Bundle Count', 'Rank', 'Trend', 'Status']],
+            column_config={
+                "creatorName": "Creator",
+                "Bundle Count": st.column_config.NumberColumn("Total Bundles", format="%d 📦"),
+                "Rank": st.column_config.NumberColumn("Avg Rank", format="%.1f ⭐"),
+                "Trend": "24h Rank Trend",
+                "Status": "Verified?"
+            },
+            use_container_width=True,
+            hide_index=True
+        )
+
+    # TO CALL THIS IN YOUR MAIN APP:
+    # if page == "🎨 Creators W101":
+    #     show_creators_page(data)
 
     def show_leaderboard(data):
         st.header("🏆 Creator Power Leaderboard")
