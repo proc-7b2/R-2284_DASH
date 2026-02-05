@@ -712,15 +712,7 @@ elif page == "Creator W101":
         # --- SAFETY CHECK: Find the correct Rank column ---
         # This automatically finds if it's 'Rank', 'rank', or 'RANK'
         # --- 0. CHART CONTROLS ---
-        st.sidebar.subheader("📈 Chart Settings")
-        data_limit = st.sidebar.slider(
-            "Number of Creators to show", 
-            min_value=5, 
-            max_value=100, 
-            value=15, 
-            step=5,
-            help="Slide to see more or fewer creators in the bar charts and leaderboard."
-        )
+        
         cols = {col.lower(): col for col in data.columns}
         rank_col = cols.get('rank', 'Rank')  # Defaults to 'Rank' if not found
         verified_col = cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
@@ -786,6 +778,16 @@ elif page == "Creator W101":
             fig_type = px.pie(creator_stats, names=type_col, hole=0.4, 
                             color_discrete_sequence=px.colors.qualitative.Pastel)
             st.plotly_chart(fig_type, use_container_width=True)
+        st.divider()
+        st.subheader("📈 Chart Settings")
+        data_limit = st.slider(
+            "Number of Creators to show", 
+            min_value=5, 
+            max_value=100, 
+            value=15, 
+            step=5,
+            help="Slide to see more or fewer creators in the bar charts and leaderboard."
+        )
 
         # --- 5. TOP CREATORS ---
         st.subheader(f"🏆 Top {data_limit} Creators (Most Bundles)")
