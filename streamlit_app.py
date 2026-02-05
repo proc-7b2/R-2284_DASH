@@ -798,7 +798,7 @@ elif page == "Creator W101":
                     names='Status', 
                     hole=0.5, # Slightly larger hole makes the ring look thinner/smaller
                     color='Status', 
-                    color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'}
+                    color_discrete_map={'Verified': '#180082', 'Unverified': '#ff4b4b'}
                 )
                 
                 # Match text color to the slice color (or white for contrast)
