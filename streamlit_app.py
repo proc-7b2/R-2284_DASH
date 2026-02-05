@@ -715,6 +715,7 @@ elif page == "Creator W101":
             'rank': cols.get('rank', 'Rank'),
             'type': cols.get('creatortype', 'creatorType'),
             'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
+            'created': cols.get('created', 'Created') 
         }
 
     # Get the dynamic column names
@@ -858,6 +859,71 @@ elif page == "Creator W101":
             st.plotly_chart(fig_growth, use_container_width=True)
         else:
             st.info("Please select at least one creator to view their growth chart.")
+
+        # --- 8. CREATOR CATALOG EXPLORER ---
+        st.divider()
+        st.subheader("🔍 Creator Catalog Deep-Dive")
+
+        # Use the sorted list of creators we made earlier
+        search_name = st.selectbox(
+            "Select a Creator to see their full bundle list:", 
+            options=all_creators,
+            index=0,
+            key="catalog_search"
+        )
+
+        if search_name:
+            c = get_column_names(data)
+            
+            # 1. Filter for the selected creator
+            creator_items = data[data[c['name']].astype(str) == search_name].copy()
+            
+            # 2. Get latest info for each unique Bundle ID
+            catalog = creator_items.sort_values(c['date']).groupby(c['id']).last().reset_index()
+
+            # 3. Calculate "Days Old" logic
+            if c['created'] in catalog.columns:
+                # Convert "Created" column to actual dates
+                catalog[c['created']] = pd.to_datetime(catalog[c['created']], errors='coerce')
+                
+                # Get today's date
+                today = pd.Timestamp.now().normalize()
+                
+                # Calculate difference and format
+                catalog['Days_Diff'] = (today - catalog[c['created']]).dt.days
+                catalog['Age Display'] = catalog['Days_Diff'].apply(
+                    lambda x: f"{int(x)} days old" if pd.notna(x) else "Unknown"
+                )
+            else:
+                catalog['Age Display'] = "Date Missing"
+
+            # 4. Verified Icon Logic
+            catalog['Verified Status'] = catalog[c['verified']].apply(
+                lambda x: "✅" if str(x).lower() in ['true', '1', 'yes'] else "❌"
+            )
+
+            # 5. Display the Table
+            # I'm assuming your bundle name column is 'bundleName' or 'Name'
+            # Change 'bundleName' below if your sheet uses a different name for the item
+            bundle_name_col = 'bundleName' if 'bundleName' in catalog.columns else 'name'
+            
+            display_df = catalog[[c['id'], bundle_name_col, c['created'], 'Age Display', 'Verified Status', c['rank']]]
+            
+            st.write(f"Found **{len(display_df)}** bundles for this creator.")
+            
+            st.dataframe(
+                display_df.sort_values(c['rank']),
+                column_config={
+                    c['id']: "ID",
+                    bundle_name_col: "Bundle Name",
+                    c['created']: st.column_config.DateColumn("Created Date", format="DD/MM/YYYY"),
+                    "Age Display": "Market Age",
+                    "Verified Status": "Verified",
+                    c['rank']: st.column_config.NumberColumn("Rank", format="%d ⭐")
+                },
+                use_container_width=True,
+                hide_index=True
+            )
 
 
     
