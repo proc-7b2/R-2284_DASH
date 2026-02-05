@@ -804,7 +804,43 @@ elif page == "Creator W101":
     
 
     show_creators_page(data)    # The new page
-    
+    # --- 7. CREATOR BUNDLE GROWTH OVER TIME ---
+    st.divider()
+    st.subheader("📈 Creator Inventory Growth")
+
+    # 1. Let the user choose which creators to compare
+    all_creators = sorted(data[name_col].unique())
+    selected_creators = st.multiselect(
+        "Select Creators to track:", 
+        options=all_creators, 
+        default=all_creators[:3] # Default to the first 3
+    )
+
+    if selected_creators:
+        # 2. Filter data for selected creators
+        growth_data = data[data[name_col].isin(selected_creators)]
+
+        # 3. Group by Date and Creator to count how many IDs they had on each day
+        # We count unique 'Id's per day per creator
+        inventory_trend = growth_data.groupby([date_col, name_col])[id_col].nunique().reset_index()
+        inventory_trend.columns = ['Date', 'Creator', 'Bundle Count']
+
+        # 4. Create the Line Chart
+        fig_growth = px.line(
+            inventory_trend, 
+            x='Date', 
+            y='Bundle Count', 
+            color='Creator',
+            markers=True,
+            title="Total Bundles Active in Marketplace",
+            template="plotly_dark"
+        )
+
+        # 5. Make it look smooth
+        fig_growth.update_layout(hovermode="x unified")
+        st.plotly_chart(fig_growth, use_container_width=True)
+    else:
+        st.info("Please select at least one creator to view their growth chart.")
 
 
 
