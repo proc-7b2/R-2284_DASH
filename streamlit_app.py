@@ -713,23 +713,31 @@ elif page == "Creator W101":
 
         # --- 1. PREPARE CREATOR DATA ---
         # Get the most recent snapshot for each bundle to avoid double-counting
+        # --- 1. PREPARE CREATOR DATA ---
+        # Get the latest data for each bundle
         latest_snapshot = data.sort_values('snapDate').groupby('Id').last().reset_index()
-        
+
+        # FORCE the verified column to be a string and clean it up for checking
+        latest_snapshot['is_verified_bool'] = latest_snapshot['creatorHasVerifiedBadge'].apply(
+            lambda x: str(x).strip().lower() in ['true', '1', '1.0', 'yes', 't']
+        )
+
         # Group by Creator
         creator_stats = latest_snapshot.groupby('creatorName').agg({
             'Id': 'count',
             'creatorType': 'first',
-            'creatorHasVerifiedBadge': 'first'
+            'is_verified_bool': 'max' # If they have 1 verified bundle, the creator is verified
         }).rename(columns={'Id': 'Bundle Count'}).reset_index()
 
-        # --- 2. KEY METRICS (KPIs) ---
+        # --- 2. UPDATED KEY METRICS ---
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.metric("Total Creators", len(creator_stats))
         with c2:
-            verified_count = creator_stats['creatorHasVerifiedBadge'].astype(str).str.lower().isin(['true', '1']).sum()
-            st.metric("Verified Creators", verified_count)
-        with c3:
+            # Use our new boolean column
+            verified_count = creator_stats['is_verified_bool'].sum()
+            st.metric("Verified Creators", int(verified_count))
+        # ... rest of your columns ...
             group_count = (creator_stats['creatorType'].str.lower() == 'group').sum()
             st.metric("Groups", group_count)
         with c4:
