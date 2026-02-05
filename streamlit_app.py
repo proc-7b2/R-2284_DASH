@@ -565,60 +565,81 @@ elif page == "Data Analysis":
                     st.session_state['selected_analysis_id'] = clicked_id
 
             # --- STEP 6: DETAILS PANEL ---
+            # --- STEP 6: DETAILS PANEL (Right Column) ---
             with col_details:
                 st.subheader("📝 Item Details")
                 
-                # Retrieve from session state
+                # Retrieve the selected ID from session state (set in the previous logic)
                 current_id = st.session_state.get('selected_analysis_id')
                 
                 if current_id:
-                    item_history = data[data['Id'] == current_id].sort_values('snapDate', ascending=False)
+                    # 1. Filter original data for this ID to get full history
+                    item_history = data[data['Id'] == current_id].sort_values('snapDate')
                     
                     if not item_history.empty:
-                        selected_data = item_history.iloc[0]
-                        today = datetime.now()
-
+                        # Get the most recent record for the profile info
+                        selected_data = item_history.iloc[-1] 
+                        
+                        # --- PROFILE SECTION ---
                         with st.container(border=True):
                             img = selected_data.get('Image Url')
                             if pd.notna(img) and str(img).strip():
                                 st.image(img, use_container_width=True)
-                            else:
-                                st.info("No image available")
-
-                        with st.container(border=True):
+                            
                             # Header with Link
                             link = selected_data.get('link', '')
-                            name_html = f"<span style='font-size:1.5rem; font-weight:600;'>{selected_data['name']}</span>"
+                            name_html = f"<div style='font-size:1.3rem; font-weight:700;'>{selected_data['name']}</div>"
                             if pd.notna(link) and str(link).strip():
-                                st.markdown(f"{name_html} <a href='{link}' target='_blank'>🔗</a>", unsafe_allow_html=True)
+                                st.markdown(f"{name_html} <a href='{link}' target='_blank' style='text-decoration:none;'>🔗 Open Link</a>", unsafe_allow_html=True)
                             else:
                                 st.markdown(name_html, unsafe_allow_html=True)
 
-                            st.divider()
-                            
-                            # Metrics
-                            col_a, col_b = st.columns(2)
-                            with col_a:
-                                st.write(f"**Rank:** `{int(selected_data['rank']) if pd.notna(selected_data['rank']) else 'N/A'}`")
-                                st.write(f"**ID:** `{selected_data['Id']}`")
-                            with col_b:
-                                fav = selected_data.get('favoriteCount', 0)
-                                st.write(f"**Favs:** :orange[{int(fav) if pd.notna(fav) else 0}]")
+                        # --- RANK HISTORY CHART ---
+                        st.write("### 📈 Rank History")
+                        
+                        # Create the line chart
+                        fig_history = px.line(
+                            item_history,
+                            x='snapDate',
+                            y='rank',
+                            markers=True,
+                            template="plotly_dark", # Matches most dashboard vibes
+                            labels={'rank': 'Rank', 'snapDate': 'Date'},
+                            title=f"Trend for ID: {current_id}"
+                        )
 
-                            st.write(f"**Creator:** {selected_data.get('creatorName', 'N/A')}")
-                            
-                            if pd.notna(selected_data.get('Created')):
-                                days_old = (today - pd.to_datetime(selected_data['Created'])).days
-                                st.write(f"**Age:** {days_old} days")
-                            
-                            # Add a "Clear" button to reset the view
-                            if st.button("Clear Selection"):
-                                del st.session_state['selected_analysis_id']
-                                st.rerun()
+                        # CRITICAL: Invert Y-axis because Rank 1 is "Higher" than Rank 10
+                        fig_history.update_yaxes(autorange="reversed", gridcolor='rgba(255,255,255,0.1)')
+                        fig_history.update_xaxes(gridcolor='rgba(255,255,255,0.1)')
+                        
+                        fig_history.update_layout(
+                            height=300, 
+                            margin=dict(l=0, r=0, t=30, b=0),
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)'
+                        )
+                        
+                        st.plotly_chart(fig_history, use_container_width=True, config={'displayModeBar': False})
+
+                        # --- STATS GRID ---
+                        st.divider()
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("Current Rank", f"#{int(selected_data['rank'])}")
+                            st.write(f"**ID:** `{selected_data['Id']}`")
+                        with col_b:
+                            fav = selected_data.get('favoriteCount', 0)
+                            st.metric("Favorites", f"{int(fav):,}" if pd.notna(fav) else "0")
+                        
+                        st.write(f"**Creator:** {selected_data.get('creatorName', 'N/A')}")
+                        
+                        if st.button("🗑️ Clear Selection", use_container_width=True):
+                            st.session_state['selected_analysis_id'] = None
+                            st.rerun()
                     else:
-                        st.warning("Data no longer available for this ID.")
+                        st.error("Historical data found, but it appears to be empty.")
                 else:
-                    st.info("👈 Click a point on either chart to see bundle details.")
+                    st.info("👈 Click a bar or a dot on the charts to see the full rank history and details.")
     
 
 
