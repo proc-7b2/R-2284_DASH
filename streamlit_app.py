@@ -615,15 +615,30 @@ elif page == "Data Analysis":
                                 st.write(f"### {selected_data['name']}")
 
                         # --- 2. CREATOR & VERIFIED BADGE ---
-                        creator_name = selected_data.get('creatorName', 'N/A')
-                        raw_verified = selected_data.get('creatorHasVerifiedBadge', None)
-                        verified = str(raw_verified).strip().lower() in ('true', '1', 'yes', 't')
-                        
-                        verified_badge = ""
-                        if verified:
-                            verified_badge = "<img src='https://en.help.roblox.com/hc/article_attachments/41933934939156' style='width:16px; height:16px; vertical-align:middle; margin-left:4px; margin-bottom:3px;'>"
-                        
-                        st.markdown(f"**Creator:** <span style='color:#70cbff'>{creator_name}</span>{verified_badge}", unsafe_allow_html=True)
+                        # 1. Get the Raw Data
+                            creator_name = selected_data.get('creatorName', 'N/A')
+                            if pd.isna(creator_name): creator_name = "N/A"
+
+                            # 2. Fix Verified Logic (Handles Booleans, Strings, and Numbers)
+                            raw_verified = selected_data.get('creatorHasVerifiedBadge', False)
+                            # This checks if it's the boolean True, the number 1, or the string 'true'
+                            verified = str(raw_verified).strip().lower() in ('true', '1', '1.0', 'yes') or raw_verified is True
+
+                            # 3. Handle Creator Type (Group vs User)
+                            creator_type = selected_data.get('creatorType', '')
+                            # Check if it's a valid string and not empty/NaN
+                            if pd.notna(creator_type) and str(creator_type).strip() != '':
+                                creator_type_label = f" <span style='color:#9b9b9b; font-size:0.85rem;'>({str(creator_type).capitalize()})</span>"
+                            else:
+                                creator_type_label = ""
+
+                            # 4. Generate the Badge HTML
+                            verified_badge = ""
+                            if verified:
+                                verified_badge = "<img src='https://en.help.roblox.com/hc/article_attachments/41933934939156' style='width:16px; height:16px; vertical-align:middle; margin-left:4px; margin-bottom:3px;'>"
+
+                            # 5. Display the final result
+                            st.markdown(f"**Creator:** <span style='color:#70cbff'>{creator_name}</span>{verified_badge}{creator_type_label}", unsafe_allow_html=True)
 
                         # --- 3. METADATA SECTION (NEW) ---
                         with st.container(border=True):
