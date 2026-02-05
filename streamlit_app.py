@@ -714,7 +714,7 @@ elif page == "Creator W101":
             'date': cols.get('snapdate', 'snapDate'),
             'rank': cols.get('rank', 'Rank'),
             'type': cols.get('creatortype', 'creatorType'),
-            'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
+            'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge'),
             'created': cols.get('created', 'Created') 
         }
 
