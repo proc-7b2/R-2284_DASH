@@ -694,7 +694,11 @@ elif page == "Creator W101":
 
     )
 
+
     conn = st.connection("gsheets", type=GSheetsConnection)
+    
+    # Get the dynamic column names
+    c = get_column_names(data)
 
     data = conn.read(worksheet="Testing DATA.1")
     data = conn.read(worksheet="Testing DATA.1")
@@ -718,8 +722,7 @@ elif page == "Creator W101":
             'created': cols.get('created', 'Created') 
         }
 
-    # Get the dynamic column names
-    c = get_column_names(data)
+   
 
     def show_creators_page(data):
         st.title("🎨 Creators W101")
