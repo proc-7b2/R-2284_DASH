@@ -566,7 +566,6 @@ elif page == "Data Analysis":
 
             # --- STEP 6: DETAILS PANEL ---
             # --- STEP 6: DETAILS PANEL (Right Column) ---
-           # --- STEP 6: DETAILS PANEL (Right Column) ---
             # --- STEP 6: DETAILS PANEL (Right Column) ---
             with col_details:
                 st.subheader("📝 Item Details")
@@ -574,71 +573,89 @@ elif page == "Data Analysis":
                 current_id = st.session_state.get('selected_analysis_id')
                 
                 if current_id:
-                    # Filter and sort
                     item_history = data[data['Id'] == current_id].sort_values('snapDate')
                     
                     if not item_history.empty:
+                        # We'll call this selected_data to keep it consistent
                         selected_data = item_history.iloc[-1] 
-
-                        # --- NEW: TRENDING THRESHOLD SELECTOR ---
-                        # This allows you to define what "Trending" means (e.g., Top 100)
-                        threshold = st.slider("Trending Threshold (Rank ≤ X)", 1, 1000, 100, help="Only ranks better than this value count toward 'Days Trending'")
-
-                        # --- CALCULATIONS ---
-                        # 1. Days Trending (Filtered by your threshold)
-                        trending_df = item_history[item_history['rank'] <= threshold]
-                        days_trending = trending_df['snapDate'].nunique()
                         
-                        # 2. Age Calculation
-                        from datetime import datetime
-                        today = datetime.now()
-                        created_val = pd.to_datetime(selected_data.get('Created'))
-                        days_old = (today - created_val).days if pd.notna(created_val) else None
-
-                        # --- PROFILE IMAGE & CREATOR (Keep your existing code here) ---
-                        # ... [Image and Creator Markdown code] ...
-
-                        # --- 3. METADATA SECTION ---
+                        # --- 1. PROFILE IMAGE ---
                         with st.container(border=True):
-                            c1, c2 = st.columns(2)
-                            with c1:
-                                st.write("🗓️ **Created Date**")
-                                if days_old is not None:
-                                    st.write(f"{created_val.strftime('%d %b %Y')}")
-                                    st.caption(f"({days_old} Days Old)")
+                            img = selected_data.get('Image Url')
+                            if pd.notna(img) and str(img).strip():
+                                st.image(img, use_container_width=True)
                             
-                            with c2:
-                                st.write("🔥 **Days Trending**")
-                                # Use a color change to show if they are currently meeting the threshold
-                                t_color = "green" if selected_data['rank'] <= threshold else "gray"
-                                st.markdown(f"<span style='font-size:1.2rem; color:{t_color}; font-weight:bold;'>{days_trending} Days</span>", unsafe_allow_html=True)
-                                st.caption(f"Rank ≤ {threshold}")
+                            # Header Name & Link
+                            link = selected_data.get('link', '')
+                            name_val = selected_data['name']
+                            if pd.notna(link) and str(link).strip():
+                                st.markdown(f"### {name_val} <a href='{link}' target='_blank' style='text-decoration:none; font-size:1.2rem;'>🔗</a>", unsafe_allow_html=True)
+                            else:
+                                st.write(f"### {name_val}")
 
-                        # --- 4. RANK HISTORY CHART (With Threshold Line) ---
-                        st.write("### 📈 Rank History")
-                        fig_history = px.line(item_history, x='snapDate', y='rank', markers=True, template="plotly_dark")
+                        # --- 2. CREATOR & VERIFIED BADGE SECTION ---
+                        # Your logic for verification
+                        creator_name = selected_data.get('creatorName', 'N/A')
+                        if pd.isna(creator_name): creator_name = "N/A"
                         
-                        # Add a visual line for the threshold
-                        fig_history.add_hline(y=threshold, line_dash="dash", line_color="orange", 
-                                            annotation_text=f"Threshold ({threshold})", 
-                                            annotation_position="bottom right")
+                        raw_verified = selected_data.get('creatorHasVerifiedBadge', None)
+                        verified = False
+                        if pd.notna(raw_verified):
+                            s = str(raw_verified).strip().lower()
+                            verified = s in ('true', '1', '1.0', 'yes', 'y', 't') or (isinstance(raw_verified, (int, float)) and raw_verified != 0)
 
+                        creator_type = selected_data.get('creatorType', '')
+                        creator_type_label = f" <span style='color:#9b9b9b; font-size:0.85rem;'>({str(creator_type).capitalize()})</span>" if pd.notna(creator_type) and creator_type != '' else ""
+
+                        verified_badge = ""
+                        if verified:
+                            # Using the Roblox verified badge icon
+                            verified_badge = "<img src='https://en.help.roblox.com/hc/article_attachments/41933934939156' style='width:16px; height:16px; display:inline-block; vertical-align:middle; margin-left:4px; margin-bottom:3px;' alt='verified'>"
+                        
+                        # Displaying the combined line
+                        st.markdown(f"**Creator:** <span style='color:#70cbff; font-weight:500;'>{creator_name}</span>{verified_badge}{creator_type_label}", unsafe_allow_html=True)
+
+                        # --- 3. RANK HISTORY CHART ---
+                        st.write("---")
+                        st.write("### 📈 Rank History")
+                        
+                        fig_history = px.line(
+                            item_history,
+                            x='snapDate',
+                            y='rank',
+                            markers=True,
+                            labels={'rank': 'Rank', 'snapDate': 'Date'},
+                            template="plotly_dark"
+                        )
+
+                        # Invert Y-axis so Rank 1 is at the top
                         fig_history.update_yaxes(autorange="reversed", gridcolor='rgba(255,255,255,0.1)')
-                        fig_history.update_layout(height=230, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
+                        fig_history.update_layout(
+                            height=250, 
+                            margin=dict(l=0, r=0, t=10, b=0),
+                            paper_bgcolor='rgba(0,0,0,0)',
+                            plot_bgcolor='rgba(0,0,0,0)'
+                        )
+                        
                         st.plotly_chart(fig_history, use_container_width=True, config={'displayModeBar': False})
 
-                        # ... [Rest of your metrics and Clear button] ...
-
-                        # --- 5. QUICK METRICS ---
+                        # --- 4. QUICK STATS ---
                         st.divider()
-                        m1, m2 = st.columns(2)
-                        m1.metric("Current Rank", f"#{int(selected_data['rank'])}")
-                        fav = selected_data.get('favoriteCount', 0)
-                        m2.metric("Favorites", f"{int(fav):,}" if pd.notna(fav) else "0")
+                        col_a, col_b = st.columns(2)
+                        with col_a:
+                            st.metric("Current Rank", f"#{int(selected_data['rank'])}")
+                        with col_b:
+                            fav = selected_data.get('favoriteCount', 0)
+                            st.metric("Favorites", f"{int(fav):,}" if pd.notna(fav) else "0")
                         
                         if st.button("🗑️ Clear Selection", use_container_width=True):
                             st.session_state['selected_analysis_id'] = None
                             st.rerun()
+                    else:
+                        st.error("No historical data found for this item.")
+                else:
+                    st.info("👈 Click a point on the charts to see the verified creator and rank trend.")
+    
 
 
 
