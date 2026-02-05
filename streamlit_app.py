@@ -639,7 +639,7 @@ elif page == "Data Analysis":
                                 is_trending = selected_data['rank'] <= threshold
                                 color = "#00ff00" if is_trending else "#888888"
                                 st.markdown(f"<h3 style='color:{color}; margin:0;'>{days_trending} Days</h3>", unsafe_allow_html=True)
-                        # --- 4. RANK HISTORY CHART ---
+                        # --- 4. RANK HISTORY CHART ---9
                         st.write("### 📈 Rank History")
                         fig_history = px.line(
                             item_history, 
