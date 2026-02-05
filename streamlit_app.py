@@ -8,9 +8,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Home", "Data Analysis", "Settings"])
+page = st.sidebar.radio("Go to", ["Bundles W101", "Ranks Analysis","Creator W101", "Settings"])
 
-if page == "Home":
+if page == "Bundles W101":
 
     st.set_page_config(
         layout="wide",
@@ -410,7 +410,7 @@ if page == "Home":
         st.info("Please select both a Start and End date for both ranges to begin.")
 
 
-elif page == "Data Analysis":
+elif page == "Ranks Analysis":
 
     
     st.set_page_config(
@@ -684,6 +684,168 @@ elif page == "Data Analysis":
                         if st.button("🗑️ Clear Selection", use_container_width=True):
                             st.session_state['selected_analysis_id'] = None
                             st.rerun()
+
+
+elif page == "Creator W101":
+    st.set_page_config(
+        layout="wide",
+        page_title="R-2284_Dash",
+        page_icon=":bar_chart:",
+
+    )
+
+    conn = st.connection("gsheets", type=GSheetsConnection)
+
+    data = conn.read(worksheet="Testing DATA.1")
+    data = conn.read(worksheet="Testing DATA.1")
+    # CRITICAL: Convert these immediately
+    data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
+    data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
+   
+   
+    # Now that it's a datetime, this line (at 436) will work:
+    max_dt = data['snapDate'].max().to_pydatetime()
+
+    st.divider()
+    st.subheader("👷 Creator W101")
+
+    st.info("Creator W101 content coming soon!")
+
+    def show_creators_page(data):
+    st.title("🎨 Creators W101")
+    st.markdown("Track creator dominance, verification trends, and market presence.")
+
+    # --- 1. PREPARE CREATOR DATA ---
+    # Get the most recent snapshot for each bundle to avoid double-counting
+    latest_snapshot = data.sort_values('snapDate').groupby('Id').last().reset_index()
+    
+    # Group by Creator
+    creator_stats = latest_snapshot.groupby('creatorName').agg({
+        'Id': 'count',
+        'creatorType': 'first',
+        'creatorHasVerifiedBadge': 'first'
+    }).rename(columns={'Id': 'Bundle Count'}).reset_index()
+
+    # --- 2. KEY METRICS (KPIs) ---
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        st.metric("Total Creators", len(creator_stats))
+    with c2:
+        verified_count = creator_stats['creatorHasVerifiedBadge'].astype(str).str.lower().isin(['true', '1']).sum()
+        st.metric("Verified Creators", verified_count)
+    with c3:
+        group_count = (creator_stats['creatorType'].str.lower() == 'group').sum()
+        st.metric("Groups", group_count)
+    with c4:
+        user_count = (creator_stats['creatorType'].str.lower() == 'user').sum()
+        st.metric("Individual Users", user_count)
+
+    st.divider()
+
+    # --- 3. CHARTS SECTION ---
+    col_a, col_b = st.columns(2)
+
+    with col_a:
+        st.subheader("Verified vs Unverified")
+        # Fix verification labels for the chart
+        creator_stats['Status'] = creator_stats['creatorHasVerifiedBadge'].apply(lambda x: 'Verified' if str(x).lower() in ['true', '1'] else 'Unverified')
+        fig_pie = px.pie(creator_stats, names='Status', hole=0.4, color='Status',
+                         color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'})
+        st.plotly_chart(fig_pie, use_container_width=True)
+
+    with col_b:
+        st.subheader("Creator Type Distribution")
+        fig_type = px.pie(creator_stats, names='creatorType', hole=0.4, 
+                          color_discrete_sequence=px.colors.qualitative.Pastel)
+        st.plotly_chart(fig_type, use_container_width=True)
+
+    # --- 4. TOP CREATORS BY BUNDLE COUNT ---
+    st.subheader("🏆 Top Creators (Most Bundles)")
+    top_creators = creator_stats.sort_values('Bundle Count', ascending=False).head(10)
+    fig_bar = px.bar(top_creators, x='creatorName', y='Bundle Count', 
+                     color='Bundle Count', text_auto=True, template="plotly_dark")
+    st.plotly_chart(fig_bar, use_container_width=True)
+
+    # --- 5. APPEARING & DISAPPEARING (The "Heat" Logic) ---
+    st.subheader("🔄 Market Presence (Last 7 Days)")
+    # Logic: Compare IDs from 7 days ago vs today
+    seven_days_ago = data['snapDate'].max() - pd.Timedelta(days=7)
+    old_creators = set(data[data['snapDate'] <= seven_days_ago]['creatorName'].unique())
+    new_creators = set(data[data['snapDate'] > seven_days_ago]['creatorName'].unique())
+    
+    appearing = new_creators - old_creators
+    disappearing = old_creators - new_creators
+
+    m1, m2 = st.columns(2)
+    m1.success(f"📈 **New Creators:** {len(appearing)}")
+    m2.error(f"📉 **Creators Left:** {len(disappearing)}")
+    
+    if len(appearing) > 0:
+        with st.expander("View New Creators"):
+            st.write(", ".join(list(appearing)[:20]) + ("..." if len(appearing) > 20 else ""))
+
+    def show_leaderboard(data):
+    st.header("🏆 Creator Power Leaderboard")
+    
+    # 1. Filter for the most recent data only
+    latest_date = data['snapDate'].max()
+    current_market = data[data['snapDate'] == latest_date].copy()
+
+    # 2. Group by Creator and calculate stats
+    leaderboard = current_market.groupby('creatorName').agg({
+        'Id': 'count',                 # Total bundles they have
+        'Rank': 'mean',                # Average rank across all their bundles
+        'creatorHasVerifiedBadge': 'first'
+    }).reset_index()
+
+    # 3. Calculate "Top 50 Presence"
+    # We count how many bundles each creator has with a rank <= 50
+    top_50_counts = current_market[current_market['Rank'] <= 50].groupby('creatorName')['Id'].count()
+    leaderboard['Top 50 Hits'] = leaderboard['creatorName'].map(top_50_counts).fillna(0).astype(int)
+
+    # 4. Clean up and Sort
+    leaderboard.columns = ['Creator', 'Total Bundles', 'Avg Rank', 'Verified', 'Top 50 Hits']
+    
+    # Sorting by "Top 50 Hits" first, then "Avg Rank" (Lower is better)
+    leaderboard = leaderboard.sort_values(by=['Top 50 Hits', 'Avg Rank'], ascending=[False, True])
+
+    # 5. Add a "Rank Score" for the leaderboard display
+    leaderboard['Avg Rank'] = leaderboard['Avg Rank'].round(1)
+    
+    # --- DISPLAY TABLE ---
+    st.dataframe(
+        leaderboard,
+        column_config={
+            "Creator": st.column_config.TextColumn("Creator Name"),
+            "Verified": st.column_config.CheckboxColumn("✅"),
+            "Avg Rank": st.column_config.NumberColumn("Avg Rank", help="Lower is better!"),
+            "Top 50 Hits": st.column_config.ProgressColumn(
+                "Market Power", 
+                help="How many bundles are in the Top 50",
+                min_value=0, 
+                max_value=int(leaderboard['Top 50 Hits'].max() + 1),
+                format="%d 🔥"
+            )
+        },
+        hide_index=True,
+        use_container_width=True
+    )
+
+    # 6. Creator Heatmap (Visualizing the Top 10)
+    st.subheader("📊 Dominance Visualization")
+    fig_heat = px.scatter(
+        leaderboard.head(15), 
+        x="Avg Rank", 
+        y="Total Bundles", 
+        size="Top 50 Hits", 
+        color="Creator",
+        hover_name="Creator",
+        title="Creator Strength: Volume vs. Quality"
+    )
+    # Flipping the X-axis because in Ranking, 1 is better than 100
+    fig_heat.update_xaxes(autorange="reversed") 
+    st.plotly_chart(fig_heat, use_container_width=True)
+
 
 
 
