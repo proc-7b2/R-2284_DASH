@@ -571,6 +571,14 @@ elif page == "Data Analysis":
                 st.subheader("📝 Item Details")
                 
                 current_id = st.session_state.get('selected_analysis_id')
+
+                threshold = st.slider(
+                                "Trending Threshold (Rank ≤ X)", 
+                                min_value=1, 
+                                max_value=1000, 
+                                value=100, 
+                                help="Define the 'gatekeeper' rank. Only days where the bundle was at or above this rank count as trending."
+                            )
                 
                 if current_id:
                     # Filter and sort
@@ -581,7 +589,9 @@ elif page == "Data Analysis":
                         
                         # --- CALCULATIONS ---
                         # 1. Days Trending (Count of unique dates we have for this ID)
-                        days_trending = item_history['snapDate'].nunique()
+                       # 1. Calculate Days Trending based on the slider above
+                        trending_days_df = item_history[item_history['rank'] <= threshold]
+                        days_trending = trending_days_df['snapDate'].nunique()
                         
                         # 2. Age Calculation
                         from datetime import datetime
@@ -620,20 +630,31 @@ elif page == "Data Analysis":
                             c1, c2 = st.columns(2)
                             with c1:
                                 st.write("🗓️ **Created Date**")
-                                if days_old is not None:
+                                if days_old:
                                     st.write(f"{created_val.strftime('%d %b %Y')}")
                                     st.caption(f"({days_old} Days Old)")
-                                else:
-                                    st.write("N/A")
-                            
                             with c2:
                                 st.write("🔥 **Days Trending**")
-                                st.write(f"{days_trending} Days")
-                                st.caption("Total snapshots")
-
+                                # Logic: If current rank is <= threshold, show green. Otherwise, show gray.
+                                is_trending = selected_data['rank'] <= threshold
+                                color = "#00ff00" if is_trending else "#888888"
+                                st.markdown(f"<h3 style='color:{color}; margin:0;'>{days_trending} Days</h3>", unsafe_allow_html=True)
                         # --- 4. RANK HISTORY CHART ---
                         st.write("### 📈 Rank History")
-                        fig_history = px.line(item_history, x='snapDate', y='rank', markers=True, template="plotly_dark")
+                        fig_history = px.line(
+                            item_history, 
+                            x='snapDate', 
+                            y='rank', 
+                            markers=True, 
+                            template="plotly_dark"
+                        )
+                        fig_history.add_hline(
+                            y=threshold, 
+                            line_dash="dash", 
+                            line_color="#ffaa00", 
+                            annotation_text=f"Trending Gate ({threshold})", 
+                            annotation_position="bottom right"
+                        )
                         fig_history.update_yaxes(autorange="reversed", gridcolor='rgba(255,255,255,0.1)')
                         fig_history.update_layout(height=230, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                         st.plotly_chart(fig_history, use_container_width=True, config={'displayModeBar': False})
