@@ -712,7 +712,7 @@ elif page == "Creator W101":
     st.info("Creator W101 content coming soon!")
 
     def show_creators_page(data):
-        `st.title("🎨 Creators W101")
+        st.title("🎨 Creators W101")
         st.markdown("Track creator dominance, verification trends, and market presence.")
 
         # --- 1. PREPARE CREATOR DATA ---
