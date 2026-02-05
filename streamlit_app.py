@@ -701,7 +701,7 @@ elif page == "Creator W101":
     # CRITICAL: Convert these immediately
     data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
     data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
-    c = get_column_names(data)
+    
    
     # Now that it's a datetime, this line (at 436) will work:
     max_dt = data['snapDate'].max().to_pydatetime()
@@ -716,6 +716,9 @@ elif page == "Creator W101":
             'type': cols.get('creatortype', 'creatorType'),
             'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
         }
+
+    # Get the dynamic column names
+    c = get_column_names(data)
 
     def show_creators_page(data):
         st.title("🎨 Creators W101")
