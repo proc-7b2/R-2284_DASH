@@ -846,6 +846,9 @@ elif page == "Creator W101":
         fig_heat.update_xaxes(autorange="reversed") 
         st.plotly_chart(fig_heat, use_container_width=True)
 
+    show_creators_page(data)    # The new page
+    
+
 
 
 
