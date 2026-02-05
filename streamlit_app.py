@@ -784,51 +784,66 @@ elif page == "Creator W101":
 
         st.divider()
 
-                # --- 4. CHARTS SECTION ---
-        col_a, col_b = st.columns(2)
+        # --- 4. CHARTS SECTION ---
+        # We use an outer set of columns to create padding on the left/right, making the charts "smaller"
+        outer_left, outer_content, outer_right = st.columns([0.1, 0.8, 0.1])
 
-        with col_a:
-            st.subheader("Verified vs Unverified")
-            # 1. Create the figure
-            fig_pie = px.pie(creator_stats, names='Status', hole=0.4, 
-                            color='Status', color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'})
-            
-            # 2. APPLY UPDATES FIRST
-            fig_pie.update_traces(
-                textposition='inside', 
-                textinfo='percent+label', 
-                insidetextfont=dict(size=22, color='Black') # Made size 22 for extra impact
-            )
-            fig_pie.update_layout(
-                font=dict(size=16),
-                showlegend=True,
-                margin=dict(t=0, b=0, l=0, r=0) # Reduces empty space
-            )
-            
-            # 3. DISPLAY LAST
-            st.plotly_chart(fig_pie, use_container_width=True)
+        with outer_content:
+            col_a, col_b = st.columns(2)
 
-        with col_b:
-            st.subheader("Creator Type Distribution")
-            # 1. Create the figure
-            fig_type = px.pie(creator_stats, names=type_col, hole=0.4, 
-                            color_discrete_sequence=px.colors.qualitative.Pastel)
-            
-            # 2. APPLY UPDATES FIRST
-            fig_type.update_traces(
-                textposition='inside', 
-                textinfo='percent', 
-                insidetextfont=dict(size=22, color='black') 
-            )
-            fig_type.update_layout(
-                font=dict(size=16),
-                margin=dict(t=0, b=0, l=0, r=0)
-            )
-            
-            # 3. DISPLAY LAST
-            st.plotly_chart(fig_type, use_container_width=True)
+            with col_a:
+                st.subheader("Verified vs Unverified")
+                fig_pie = px.pie(
+                    creator_stats, 
+                    names='Status', 
+                    hole=0.5, # Slightly larger hole makes the ring look thinner/smaller
+                    color='Status', 
+                    color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'}
+                )
+                
+                # Match text color to the slice color (or white for contrast)
+                fig_pie.update_traces(
+                    textposition='inside', 
+                    textinfo='percent+label', 
+                    insidetextfont=dict(size=14, color='white'), 
+                    marker=dict(line=dict(color='#111111', width=2)) # Adds a subtle border
+                )
+                
+                fig_pie.update_layout(
+                    margin=dict(t=20, b=20, l=20, r=20),
+                    height=350, # Explicitly setting height makes it smaller
+                    showlegend=False # Removing legend makes the chart itself larger in its box
+                )
+                st.plotly_chart(fig_pie, use_container_width=True)
 
-        #Chart Settings
+            with col_b:
+                st.subheader("Creator Type Distribution")
+                # Custom colors for Group/User to match the "Pastel" feel in your image
+                type_colors = {'Group': '#72c4c9', 'User': '#f7d67d'} 
+                
+                fig_type = px.pie(
+                    creator_stats, 
+                    names=type_col, 
+                    hole=0.5, 
+                    color=type_col,
+                    color_discrete_map=type_colors
+                )
+                
+                # Syncing text color to slice color by using 'black' on light backgrounds
+                fig_type.update_traces(
+                    textposition='inside', 
+                    textinfo='percent+label', 
+                    insidetextfont=dict(size=14, color='black'),
+                    marker=dict(line=dict(color='#111111', width=2))
+                )
+                
+                fig_type.update_layout(
+                    margin=dict(t=20, b=20, l=20, r=20),
+                    height=350,
+                    showlegend=False
+                )
+                st.plotly_chart(fig_type, use_container_width=True)
+                #Chart Settings
 
         st.divider()
         st.subheader("📈 Chart Settings")
