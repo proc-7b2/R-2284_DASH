@@ -567,6 +567,7 @@ elif page == "Data Analysis":
             # --- STEP 6: DETAILS PANEL ---
             # --- STEP 6: DETAILS PANEL (Right Column) ---
            # --- STEP 6: DETAILS PANEL (Right Column) ---
+            # --- STEP 6: DETAILS PANEL (Right Column) ---
             with col_details:
                 st.subheader("📝 Item Details")
                 
@@ -578,44 +579,26 @@ elif page == "Data Analysis":
                     
                     if not item_history.empty:
                         selected_data = item_history.iloc[-1] 
-                        
+
+                        # --- NEW: TRENDING THRESHOLD SELECTOR ---
+                        # This allows you to define what "Trending" means (e.g., Top 100)
+                        threshold = st.slider("Trending Threshold (Rank ≤ X)", 1, 1000, 100, help="Only ranks better than this value count toward 'Days Trending'")
+
                         # --- CALCULATIONS ---
-                        # 1. Days Trending (Count of unique dates we have for this ID)
-                        days_trending = item_history['snapDate'].nunique()
+                        # 1. Days Trending (Filtered by your threshold)
+                        trending_df = item_history[item_history['rank'] <= threshold]
+                        days_trending = trending_df['snapDate'].nunique()
                         
                         # 2. Age Calculation
                         from datetime import datetime
                         today = datetime.now()
                         created_val = pd.to_datetime(selected_data.get('Created'))
-                        days_old = None
-                        if pd.notna(created_val):
-                            days_old = (today - created_val).days
+                        days_old = (today - created_val).days if pd.notna(created_val) else None
 
-                        # --- 1. PROFILE IMAGE ---
-                        with st.container(border=True):
-                            img = selected_data.get('Image Url')
-                            if pd.notna(img) and str(img).strip():
-                                st.image(img, use_container_width=True)
-                            
-                            # Header
-                            link = selected_data.get('link', '')
-                            if pd.notna(link) and str(link).strip():
-                                st.markdown(f"### {selected_data['name']} <a href='{link}' target='_blank' style='text-decoration:none;'>🔗</a>", unsafe_allow_html=True)
-                            else:
-                                st.write(f"### {selected_data['name']}")
+                        # --- PROFILE IMAGE & CREATOR (Keep your existing code here) ---
+                        # ... [Image and Creator Markdown code] ...
 
-                        # --- 2. CREATOR & VERIFIED BADGE ---
-                        creator_name = selected_data.get('creatorName', 'N/A')
-                        raw_verified = selected_data.get('creatorHasVerifiedBadge', None)
-                        verified = str(raw_verified).strip().lower() in ('true', '1', 'yes', 't')
-                        
-                        verified_badge = ""
-                        if verified:
-                            verified_badge = "<img src='https://en.help.roblox.com/hc/article_attachments/41933934939156' style='width:16px; height:16px; vertical-align:middle; margin-left:4px; margin-bottom:3px;'>"
-                        
-                        st.markdown(f"**Creator:** <span style='color:#70cbff'>{creator_name}</span>{verified_badge}", unsafe_allow_html=True)
-
-                        # --- 3. METADATA SECTION (NEW) ---
+                        # --- 3. METADATA SECTION ---
                         with st.container(border=True):
                             c1, c2 = st.columns(2)
                             with c1:
@@ -623,20 +606,28 @@ elif page == "Data Analysis":
                                 if days_old is not None:
                                     st.write(f"{created_val.strftime('%d %b %Y')}")
                                     st.caption(f"({days_old} Days Old)")
-                                else:
-                                    st.write("N/A")
                             
                             with c2:
                                 st.write("🔥 **Days Trending**")
-                                st.write(f"{days_trending} Days")
-                                st.caption("Total snapshots")
+                                # Use a color change to show if they are currently meeting the threshold
+                                t_color = "green" if selected_data['rank'] <= threshold else "gray"
+                                st.markdown(f"<span style='font-size:1.2rem; color:{t_color}; font-weight:bold;'>{days_trending} Days</span>", unsafe_allow_html=True)
+                                st.caption(f"Rank ≤ {threshold}")
 
-                        # --- 4. RANK HISTORY CHART ---
+                        # --- 4. RANK HISTORY CHART (With Threshold Line) ---
                         st.write("### 📈 Rank History")
                         fig_history = px.line(item_history, x='snapDate', y='rank', markers=True, template="plotly_dark")
+                        
+                        # Add a visual line for the threshold
+                        fig_history.add_hline(y=threshold, line_dash="dash", line_color="orange", 
+                                            annotation_text=f"Threshold ({threshold})", 
+                                            annotation_position="bottom right")
+
                         fig_history.update_yaxes(autorange="reversed", gridcolor='rgba(255,255,255,0.1)')
                         fig_history.update_layout(height=230, margin=dict(l=0, r=0, t=10, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)')
                         st.plotly_chart(fig_history, use_container_width=True, config={'displayModeBar': False})
+
+                        # ... [Rest of your metrics and Clear button] ...
 
                         # --- 5. QUICK METRICS ---
                         st.divider()
