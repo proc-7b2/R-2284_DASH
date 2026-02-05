@@ -828,6 +828,8 @@ elif page == "Creator W101":
         # 1. Let the user choose which creators to compare
         # Force everything to a string (str) so the sorting doesn't crash
        # Force everything to a string (str) so the sorting doesn't crash
+        c = get_column_names(data)
+        
         all_creators = sorted([str(x) for x in data[c['name']].unique() if pd.notna(x)])
         selected_creators = st.multiselect(
             "Select Creators to track:", 
