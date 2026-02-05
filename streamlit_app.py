@@ -708,32 +708,46 @@ elif page == "Creator W101":
 
     def show_creators_page(data):
         st.title("🎨 Creators W101")
-        st.markdown("Track creator dominance, verification trends, and market presence.")
+        
+        # --- SAFETY CHECK: Find the correct Rank column ---
+        # This automatically finds if it's 'Rank', 'rank', or 'RANK'
+        cols = {col.lower(): col for col in data.columns}
+        rank_col = cols.get('rank', 'Rank')  # Defaults to 'Rank' if not found
+        verified_col = cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
+        type_col = cols.get('creatortype', 'creatorType')
+        name_col = cols.get('creatorname', 'creatorName')
+        id_col = cols.get('id', 'Id')
+        date_col = cols.get('snapdate', 'snapDate')
 
-        # --- 1. DATA PREPARATION (Cleaning & Normalizing) ---
-        # Sort by date so .last() gets the most recent data
-        data_sorted = data.sort_values('snapDate')
-        latest_snapshot = data_sorted.groupby('Id').last().reset_index()
+        # Double check if Rank exists, if not, show a helpful error
+        if rank_col not in data.columns:
+            st.error(f"Could not find a 'Rank' column. Available columns: {list(data.columns)}")
+            return
 
-        # Create a reliable boolean column for verification
-        latest_snapshot['is_verified_bool'] = latest_snapshot['creatorHasVerifiedBadge'].apply(
+        # --- 1. DATA PREPARATION ---
+        # Sort and get the latest snapshot
+        data_sorted = data.sort_values(date_col)
+        latest_snapshot = data_sorted.groupby(id_col).last().reset_index()
+
+        # Normalize Verified status
+        latest_snapshot['is_verified_bool'] = latest_snapshot[verified_col].apply(
             lambda x: str(x).strip().lower() in ['true', '1', '1.0', 'yes', 't']
         )
 
-        # Group by Creator to build the Stats table
-        creator_stats = latest_snapshot.groupby('creatorName').agg({
-            'Id': 'count',
-            'creatorType': 'first',
-            'is_verified_bool': 'max',      # Verified if at least one bundle is verified
-            'Rank': 'mean'                  # Average Rank across all their bundles
-        }).rename(columns={'Id': 'Bundle Count'}).reset_index()
+        # --- 2. AGGREGATION ---
+        # We use the dynamic column names found in the safety check
+        creator_stats = latest_snapshot.groupby(name_col).agg({
+            id_col: 'count',
+            type_col: 'first',
+            'is_verified_bool': 'max',
+            rank_col: 'mean'
+        }).rename(columns={id_col: 'Bundle Count'}).reset_index()
 
-        # Create a clean "Status" column for charts
         creator_stats['Status'] = creator_stats['is_verified_bool'].apply(
             lambda x: 'Verified' if x else 'Unverified'
         )
 
-        # --- 2. KEY METRICS (KPIs) ---
+        # --- 3. KEY METRICS ---
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.metric("Total Creators", len(creator_stats))
@@ -741,102 +755,57 @@ elif page == "Creator W101":
             verified_total = creator_stats['is_verified_bool'].sum()
             st.metric("Verified Creators", int(verified_total))
         with c3:
-            group_count = (creator_stats['creatorType'].str.lower() == 'group').sum()
+            group_count = (creator_stats[type_col].astype(str).str.lower() == 'group').sum()
             st.metric("Groups", int(group_count))
         with c4:
-            user_count = (creator_stats['creatorType'].str.lower() == 'user').sum()
+            user_count = (creator_stats[type_col].astype(str).str.lower() == 'user').sum()
             st.metric("Individual Users", int(user_count))
 
         st.divider()
 
-        # --- 3. CHARTS SECTION ---
+        # --- 4. CHARTS SECTION ---
         col_a, col_b = st.columns(2)
-
         with col_a:
             st.subheader("Verified vs Unverified")
             fig_pie = px.pie(creator_stats, names='Status', hole=0.4, 
-                            color='Status',
-                            color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'})
+                            color='Status', color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'})
             st.plotly_chart(fig_pie, use_container_width=True)
 
         with col_b:
             st.subheader("Creator Type Distribution")
-            fig_type = px.pie(creator_stats, names='creatorType', hole=0.4, 
+            fig_type = px.pie(creator_stats, names=type_col, hole=0.4, 
                             color_discrete_sequence=px.colors.qualitative.Pastel)
-        st.plotly_chart(fig_type, use_container_width=True)
+            st.plotly_chart(fig_type, use_container_width=True)
 
-        # --- 4. TOP CREATORS BY BUNDLE COUNT ---
+        # --- 5. TOP CREATORS ---
         st.subheader("🏆 Top Creators (Most Bundles)")
         top_creators = creator_stats.sort_values('Bundle Count', ascending=False).head(10)
-        fig_bar = px.bar(top_creators, x='creatorName', y='Bundle Count', 
-                        color='Bundle Count', text_auto=True, 
-                        color_continuous_scale='Viridis', template="plotly_dark")
+        fig_bar = px.bar(top_creators, x=name_col, y='Bundle Count', 
+                        color='Bundle Count', text_auto=True, template="plotly_dark")
         st.plotly_chart(fig_bar, use_container_width=True)
 
-        # --- 5. MARKET TRENDS (Appearing/Disappearing) ---
-        st.divider()
-        st.subheader("🔄 Market Presence (Last 7 Days)")
-        
-        max_date = data['snapDate'].max()
-        seven_days_ago = max_date - pd.Timedelta(days=7)
-        
-        old_creators = set(data[data['snapDate'] <= seven_days_ago]['creatorName'].unique())
-        new_creators_current = set(data[data['snapDate'] > seven_days_ago]['creatorName'].unique())
-        
-        appearing = new_creators_current - old_creators
-        disappearing = old_creators - new_creators
-
-        m1, m2 = st.columns(2)
-        m1.success(f"📈 **New Creators:** {len(appearing)}")
-        m2.error(f"📉 **Creators Left:** {len(disappearing)}")
-        
-        if len(appearing) > 0:
-            with st.expander("🔍 View New Creators List"):
-                st.write(", ".join(list(appearing)))
-
-        # --- 6. POWER LEADERBOARD WITH TRENDS ---
+        # --- 6. LEADERBOARD ---
         st.divider()
         st.header("🏆 Creator Power Leaderboard")
-
-        # Trend Logic: Compare today's avg rank vs yesterday's
-        dates = sorted(data['snapDate'].unique())
-        if len(dates) >= 2:
-            latest_day = dates[-1]
-            prev_day = dates[-2]
-
-            avg_rank_today = data[data['snapDate'] == latest_day].groupby('creatorName')['Rank'].mean()
-            avg_rank_yesterday = data[data['snapDate'] == prev_day].groupby('creatorName')['Rank'].mean()
-            
-            # Calculate Rank Change (Previous - Today, because lower rank is better)
-            creator_stats['Change'] = creator_stats['creatorName'].map(avg_rank_yesterday - avg_rank_today)
-            
-            def format_trend(val):
-                if pd.isna(val) or val == 0: return "➖"
-                return f"🔼 {val:.1f}" if val > 0 else f"🔽 {abs(val):.1f}"
-            
-            creator_stats['Trend'] = creator_stats['Change'].apply(format_trend)
-        else:
-            creator_stats['Trend'] = "➖"
-
-        # Final Leaderboard Display
+        
+        # Sorting by Bundle Count as a baseline
         leaderboard_df = creator_stats.sort_values('Bundle Count', ascending=False)
         
         st.dataframe(
-            leaderboard_df[['creatorName', 'Bundle Count', 'Rank', 'Trend', 'Status']],
+            leaderboard_df[[name_col, 'Bundle Count', rank_col, 'Status']],
             column_config={
-                "creatorName": "Creator",
+                name_col: "Creator",
                 "Bundle Count": st.column_config.NumberColumn("Total Bundles", format="%d 📦"),
-                "Rank": st.column_config.NumberColumn("Avg Rank", format="%.1f ⭐"),
-                "Trend": "24h Rank Trend",
+                rank_col: st.column_config.NumberColumn("Avg Rank", format="%.1f ⭐"),
                 "Status": "Verified?"
             },
             use_container_width=True,
             hide_index=True
         )
 
-    # TO CALL THIS IN YOUR MAIN APP:
-    # if page == "🎨 Creators W101":
-    #     show_creators_page(data)
+        # TO CALL THIS IN YOUR MAIN APP:
+        # if page == "🎨 Creators W101":
+        #     show_creators_page(data)
 
     def show_leaderboard(data):
         st.header("🏆 Creator Power Leaderboard")
