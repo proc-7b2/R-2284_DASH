@@ -8,7 +8,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Bundles W101", "Ranks Analysis","Creator W101", "Settings"])
+page = st.sidebar.radio("Go to", ["Bundles W101", "Creator W101","Ranks Analysis", "Settings"])
 
 if page == "Bundles W101":
 
