@@ -565,15 +565,14 @@ elif page == "Data Analysis":
                         if len(points) > 0:
                             first_point = points[0]
                             
-                            # Plotly usually uses 'customdata' (one word)
-                            # It returns a list of the values you passed in px.bar(custom_data=[...])
+                            # 1. Try 'customdata' (Plotly's standard key)
+                            # 2. Try 'custom_data' (Streamlit's sometimes-alternate key)
                             cdata = first_point.get("customdata") or first_point.get("custom_data")
                             
-                            if cdata is not None:
-                                # If it's a list/array, take the first element (the ID)
-                                if isinstance(cdata, list) or hasattr(cdata, "__getitem__"):
-                                    return cdata[0]
-                                return cdata
+                            # Check if cdata exists and is a list/sequence with at least one item
+                            if cdata is not None and len(cdata) > 0:
+                                return cdata[0]
+                                
                     return None
 
                 # Check Bar Chart first
