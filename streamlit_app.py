@@ -784,41 +784,49 @@ elif page == "Creator W101":
 
         st.divider()
 
-        # --- 4. CHARTS SECTION ---
+                # --- 4. CHARTS SECTION ---
         col_a, col_b = st.columns(2)
+
         with col_a:
             st.subheader("Verified vs Unverified")
+            # 1. Create the figure
             fig_pie = px.pie(creator_stats, names='Status', hole=0.4, 
                             color='Status', color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'})
-            st.plotly_chart(fig_pie, use_container_width=True)
-
-            # --- For the Verified Pie Chart ---
+            
+            # 2. APPLY UPDATES FIRST
             fig_pie.update_traces(
                 textposition='inside', 
                 textinfo='percent+label', 
-                insidetextfont=dict(size=18, color='white') # Adjust size and color here
+                insidetextfont=dict(size=22, color='white') # Made size 22 for extra impact
             )
             fig_pie.update_layout(
-                font=dict(size=16), # This changes the legend text size
-                showlegend=True
+                font=dict(size=16),
+                showlegend=True,
+                margin=dict(t=0, b=0, l=0, r=0) # Reduces empty space
             )
+            
+            # 3. DISPLAY LAST
+            st.plotly_chart(fig_pie, use_container_width=True)
 
         with col_b:
             st.subheader("Creator Type Distribution")
+            # 1. Create the figure
             fig_type = px.pie(creator_stats, names=type_col, hole=0.4, 
                             color_discrete_sequence=px.colors.qualitative.Pastel)
-            st.plotly_chart(fig_type, use_container_width=True)
-
-            # --- For the Creator Type Pie Chart ---
-
+            
+            # 2. APPLY UPDATES FIRST
             fig_type.update_traces(
                 textposition='inside', 
                 textinfo='percent', 
-                insidetextfont=dict(size=18, color='black') # Using black if the slice is light yellow/blue
+                insidetextfont=dict(size=22, color='black') 
             )
             fig_type.update_layout(
-                font=dict(size=16)
+                font=dict(size=16),
+                margin=dict(t=0, b=0, l=0, r=0)
             )
+            
+            # 3. DISPLAY LAST
+            st.plotly_chart(fig_type, use_container_width=True)
 
         #Chart Settings
 
