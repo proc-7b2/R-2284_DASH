@@ -507,13 +507,14 @@ elif page == "Data Analysis":
                     color='rank_diff',
                     color_continuous_scale='RdYlGn',
                     labels={'rank_diff': 'Rank Change', 'name': 'Bundle Name'},
-                    custom_data=['Id'], 
+                    custom_data=['Id'], # Keep this for Plotly Express
                     hover_data=['rank_past', 'rank_curr'],
                     text_auto='.0f'
                 )
                 fig.update_layout(yaxis={'categoryorder':'total ascending'}, height=600)
-                # CRITICAL: Explicitly map customdata
-                fig.update_traces(customdata=movers[['Id']])
+
+                # FIX: Use .values to ensure it's a simple array, not a DataFrame
+                fig.update_traces(customdata=movers['Id'].values) 
 
                 event_bar = st.plotly_chart(fig, use_container_width=True, on_select="rerun", key="bar_chart")
 
@@ -526,13 +527,10 @@ elif page == "Data Analysis":
                     hover_name='name',
                     custom_data=['Id'],
                     color='rank_diff',
-                    color_continuous_scale='RdYlGn',
-                    labels={'rank_past': 'Previous Rank', 'rank_curr': 'Current Rank'}
+                    color_continuous_scale='RdYlGn'
                 )
-                fig_scatter.add_shape(type="line", x0=0, y0=0, x1=plot_data['rank_past'].max(), y1=plot_data['rank_past'].max(),
-                                    line=dict(color="Gray", dash="dash"))
-                # CRITICAL: Explicitly map customdata
-                fig_scatter.update_traces(customdata=plot_data[['Id']])
+                # FIX: Use .values here too
+                fig_scatter.update_traces(customdata=plot_data['Id'].values)
 
                 event_scatter = st.plotly_chart(fig_scatter, use_container_width=True, on_select="rerun", key="scatter_chart")
 
@@ -541,10 +539,22 @@ elif page == "Data Analysis":
                     if event and "selection" in event:
                         points = event["selection"].get("points", [])
                         if points:
-                            # Plotly data is often in 'customdata'
-                            cdata = points[0].get("customdata") or points[0].get("custom_data")
-                            if cdata and len(cdata) > 0:
-                                return cdata[0]
+                            # Get the raw data block
+                            point = points[0]
+                            cdata = point.get("customdata") or point.get("custom_data")
+                            
+                            if cdata is not None:
+                                # Case A: It's a list or tuple (most common)
+                                if isinstance(cdata, (list, tuple)) and len(cdata) > 0:
+                                    return cdata[0]
+                                
+                                # Case B: It's a dictionary (KeyError 0 happens here)
+                                if isinstance(cdata, dict):
+                                    # Try to get the first value in the dict regardless of key name
+                                    return next(iter(cdata.values()))
+                                
+                                # Case C: It's already a single value (string/int)
+                                return cdata
                     return None
 
                 # Capture ID from either chart
