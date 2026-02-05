@@ -792,11 +792,36 @@ elif page == "Creator W101":
                             color='Status', color_discrete_map={'Verified': '#00ffcc', 'Unverified': '#ff4b4b'})
             st.plotly_chart(fig_pie, use_container_width=True)
 
+            # --- For the Verified Pie Chart ---
+            fig_pie.update_traces(
+                textposition='inside', 
+                textinfo='percent+label', 
+                insidetextfont=dict(size=18, color='white') # Adjust size and color here
+            )
+            fig_pie.update_layout(
+                font=dict(size=16), # This changes the legend text size
+                showlegend=True
+            )
+
         with col_b:
             st.subheader("Creator Type Distribution")
             fig_type = px.pie(creator_stats, names=type_col, hole=0.4, 
                             color_discrete_sequence=px.colors.qualitative.Pastel)
             st.plotly_chart(fig_type, use_container_width=True)
+
+            # --- For the Creator Type Pie Chart ---
+
+            fig_type.update_traces(
+                textposition='inside', 
+                textinfo='percent', 
+                insidetextfont=dict(size=18, color='black') # Using black if the slice is light yellow/blue
+            )
+            fig_type.update_layout(
+                font=dict(size=16)
+            )
+
+        #Chart Settings
+
         st.divider()
         st.subheader("📈 Chart Settings")
         data_limit = st.slider(
@@ -829,7 +854,7 @@ elif page == "Creator W101":
         # Force everything to a string (str) so the sorting doesn't crash
        # Force everything to a string (str) so the sorting doesn't crash
         c = get_column_names(data)
-        
+
         all_creators = sorted([str(x) for x in data[c['name']].unique() if pd.notna(x)])
         selected_creators = st.multiselect(
             "Select Creators to track:", 
