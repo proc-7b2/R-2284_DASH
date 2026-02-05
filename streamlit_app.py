@@ -7,19 +7,7 @@ from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
 
-# --- 1. SET SIDEBAR WIDTH ---
-st.markdown(
-    """
-    <style>
-    /* This targets the sidebar container specifically */
-    [data-testid="stSidebar"] {
-        width: 320px;
-        max-width: 320px;
-    }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
+
 
 st.sidebar.title("Navigation")
 page = st.sidebar.radio("Go to", ["Bundles W101", "Creator W101","Ranks Analysis", "Settings"])
