@@ -816,41 +816,43 @@ elif page == "Creator W101":
         #     show_creators_page(data)
 
             # --- 7. CREATOR BUNDLE GROWTH OVER TIME ---
-    st.divider()
-    st.subheader("📈 Creator Inventory Growth")
 
-    # 1. Let the user choose which creators to compare
-    all_creators = sorted(data[c['name']].unique())
-    selected_creators = st.multiselect(
-        "Select Creators to track:", 
-        options=all_creators, 
-        default=all_creators[:3] # Default to the first 3
-    )
+        st.divider()
+        st.subheader("📈 Creator Inventory Growth")
 
-    if selected_creators:
-        # Filter for selected creators
-        growth_data = data[data[c['name']].isin(selected_creators)].copy()
-
-        # Grouping logic: Count unique Bundle IDs per Day per Creator
-        inventory_trend = growth_data.groupby([c['date'], c['name']])[c['id']].nunique().reset_index()
-        inventory_trend.columns = ['Date', 'Creator', 'Bundle Count']
-
-        # Create Line Chart
-        fig_growth = px.line(
-            inventory_trend, 
-            x='Date', 
-            y='Bundle Count', 
-            color='Creator',
-            markers=True,
-            template="plotly_dark",
-            color_discrete_sequence=px.colors.qualitative.Pastel
+        # 1. Let the user choose which creators to compare
+        # Force everything to a string (str) so the sorting doesn't crash
+        all_creators = sorted([str(x) for x in data[c['name']].unique() if pd.notna(x)])    selected_creators = st.multiselect(
+            "Select Creators to track:", 
+            options=all_creators, 
+            default=all_creators[:3] # Default to the first 3
         )
 
-        # 5. Make it look smooth
-        fig_growth.update_layout(hovermode="x unified")
-        st.plotly_chart(fig_growth, use_container_width=True)
-    else:
-        st.info("Please select at least one creator to view their growth chart.")
+        if selected_creators:
+            # Filter for selected creators
+            growth_data = data[data[c['name']].isin(selected_creators)].copy()
+
+            # Grouping logic: Count unique Bundle IDs per Day per Creator
+            inventory_trend = growth_data.groupby([c['date'], c['name']])[c['id']].nunique().reset_index()
+            inventory_trend.columns = ['Date', 'Creator', 'Bundle Count']
+
+            # Create Line Chart
+            fig_growth = px.line(
+                inventory_trend, 
+                x='Date', 
+                y='Bundle Count', 
+                color='Creator',
+                markers=True,
+                template="plotly_dark",
+                color_discrete_sequence=px.colors.qualitative.Pastel
+            )
+
+            # 5. Make it look smooth
+            fig_growth.update_layout(hovermode="x unified")
+            st.plotly_chart(fig_growth, use_container_width=True)
+        else:
+            st.info("Please select at least one creator to view their growth chart.")
+
 
     
 
