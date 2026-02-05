@@ -707,15 +707,15 @@ elif page == "Creator W101":
     max_dt = data['snapDate'].max().to_pydatetime()
 
     def get_column_names(df):
-    cols = {col.lower().strip(): col for col in df.columns}
-    return {
-        'name': cols.get('creatorname', 'creatorName'),
-        'id': cols.get('id', 'Id'),
-        'date': cols.get('snapdate', 'snapDate'),
-        'rank': cols.get('rank', 'Rank'),
-        'type': cols.get('creatortype', 'creatorType'),
-        'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
-    }
+        cols = {col.lower().strip(): col for col in df.columns}
+        return {
+            'name': cols.get('creatorname', 'creatorName'),
+            'id': cols.get('id', 'Id'),
+            'date': cols.get('snapdate', 'snapDate'),
+            'rank': cols.get('rank', 'Rank'),
+            'type': cols.get('creatortype', 'creatorType'),
+            'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
+        }
 
     def show_creators_page(data):
         st.title("🎨 Creators W101")
