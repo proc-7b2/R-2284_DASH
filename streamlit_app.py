@@ -8,9 +8,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 
-
-st.sidebar.title("Navigation")
-page = st.sidebar.radio("Go to", ["Bundles W101", "Creator W101","Ranks Analysis", "Settings"])
+page = st.segmented_control(
+    "Navigate", 
+    ["Bundles W101", "Creator W101", "Ranks Analysis", "Settings"], 
+    default="Bundles W101"
+)
 
 if page == "Bundles W101":
 
@@ -18,10 +20,11 @@ if page == "Bundles W101":
         layout="wide",
         page_title="R-2284_Dash",
         page_icon=":bar_chart:",
+        initial_sidebar_state="collapsed"
 
     )
 
-    st.title("Welcome, X3sw")
+    st.title("📦 Bundles W101")
 
     st.space()
 
@@ -688,28 +691,83 @@ elif page == "Ranks Analysis":
                             st.rerun()
 
 
+
 elif page == "Creator W101":
     st.set_page_config(
         layout="wide",
         page_title="R-2284_Dash",
         page_icon=":bar_chart:",
-
     )
-
 
     conn = st.connection("gsheets", type=GSheetsConnection)
 
-   
+    # 1. LOAD DATA
+    data = conn.read(worksheet="Testing DATA.1")
+    data = conn.read(worksheet="Testing DATA.1")
 
-    data = conn.read(worksheet="Testing DATA.1")
-    data = conn.read(worksheet="Testing DATA.1")
-    # CRITICAL: Convert these immediately
+    # 2. CONVERT DATES
     data['snapDate'] = pd.to_datetime(data['snapDate'], errors='coerce')
     data['Created'] = pd.to_datetime(data['Created'], errors='coerce')
+
+    # --- TIME RANGE CONTROL (ON-PAGE) ---
+    st.title("🎨 Creators W101")
     
-   
-    # Now that it's a datetime, this line (at 436) will work:
-    max_dt = data['snapDate'].max().to_pydatetime()
+    # UI Layout for Filters
+    filter_col1, filter_col2 = st.columns([1, 2])
+    
+    abs_min_date = data['snapDate'].min()
+    abs_max_date = data['snapDate'].max()
+
+    with filter_col1:
+        range_type = st.selectbox(
+            "Filter Period",
+            ["Monthly (Last 30 Days)", "Weekly (Last 7 Days)", "Custom Range"]
+        )
+
+    # Initialize filters
+    start_filter = abs_min_date
+    end_filter = abs_max_date
+
+    if range_type == "Monthly (Last 30 Days)":
+        # Look back 30 days from the latest data point
+        end_filter = abs_max_date
+        start_filter = end_filter - pd.Timedelta(days=30)
+        with filter_col2:
+            st.info(f"📅 Showing last 30 days: {start_filter.strftime('%d %b')} to {end_filter.strftime('%d %b')}")
+
+    elif range_type == "Weekly (Last 7 Days)":
+        # Look back 7 days from the latest data point
+        end_filter = abs_max_date
+        start_filter = end_filter - pd.Timedelta(days=7)
+        with filter_col2:
+            st.info(f"📅 Showing last 7 days: {start_filter.strftime('%d %b')} to {end_filter.strftime('%d %b')}")
+
+    elif range_type == "Custom Range":
+        with filter_col2:
+            user_selection = st.date_input(
+                "Pick Date Range",
+                value=(abs_min_date.date(), abs_max_date.date()),
+                min_value=abs_min_date.date(),
+                max_value=abs_max_date.date()
+            )
+        if isinstance(user_selection, tuple) and len(user_selection) == 2:
+            start_filter = pd.to_datetime(user_selection[0])
+            end_filter = pd.to_datetime(user_selection[1])
+
+    # Smart Start: Use whichever date is later (Selection vs Actual Data)
+    effective_start = max(start_filter, abs_min_date)
+    
+    # Apply global filter
+    data = data[
+        (data['snapDate'] >= effective_start) & 
+        (data['snapDate'] <= end_filter)
+    ].copy()
+    
+    st.divider()
+    # --- END TIME RANGE CONTROL ---
+
+    if not data.empty:
+        max_dt = data['snapDate'].max().to_pydatetime()
 
     def get_column_names(df):
         cols = {col.lower().strip(): col for col in df.columns}
@@ -722,43 +780,31 @@ elif page == "Creator W101":
             'verified': cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge'),
             'created': cols.get('created', 'Created') 
         }
-     # Get the dynamic column names
+
     c = get_column_names(data)
 
-   
-
     def show_creators_page(data):
-        st.title("🎨 Creators W101")
-        
-        # --- SAFETY CHECK: Find the correct Rank column ---
-        # This automatically finds if it's 'Rank', 'rank', or 'RANK'
-        # --- 0. CHART CONTROLS ---
-        
         cols = {col.lower(): col for col in data.columns}
-        rank_col = cols.get('rank', 'Rank')  # Defaults to 'Rank' if not found
+        rank_col = cols.get('rank', 'Rank')
         verified_col = cols.get('creatorhasverifiedbadge', 'creatorHasVerifiedBadge')
         type_col = cols.get('creatortype', 'creatorType')
         name_col = cols.get('creatorname', 'creatorName')
         id_col = cols.get('id', 'Id')
         date_col = cols.get('snapdate', 'snapDate')
 
-        # Double check if Rank exists, if not, show a helpful error
         if rank_col not in data.columns:
             st.error(f"Could not find a 'Rank' column. Available columns: {list(data.columns)}")
             return
 
-        # --- 1. DATA PREPARATION ---
-        # Sort and get the latest snapshot
+        # 1. DATA PREPARATION
         data_sorted = data.sort_values(date_col)
         latest_snapshot = data_sorted.groupby(id_col).last().reset_index()
 
-        # Normalize Verified status
         latest_snapshot['is_verified_bool'] = latest_snapshot[verified_col].apply(
             lambda x: str(x).strip().lower() in ['true', '1', '1.0', 'yes', 't']
         )
 
-        # --- 2. AGGREGATION ---
-        # We use the dynamic column names found in the safety check
+        # 2. AGGREGATION
         creator_stats = latest_snapshot.groupby(name_col).agg({
             id_col: 'count',
             type_col: 'first',
@@ -770,7 +816,7 @@ elif page == "Creator W101":
             lambda x: 'Verified' if x else 'Unverified'
         )
 
-        # --- 3. KEY METRICS ---
+        # 3. KEY METRICS
         c1, c2, c3, c4 = st.columns(4)
         with c1:
             st.metric("Total Creators", len(creator_stats))
@@ -786,212 +832,78 @@ elif page == "Creator W101":
 
         st.divider()
 
-        # --- 4. CHARTS SECTION ---
-        # We use an outer set of columns to create padding on the left/right, making the charts "smaller"
+        # 4. CHARTS SECTION
         outer_left, outer_content, outer_right = st.columns([0.1, 0.8, 0.1])
-
         with outer_content:
             col_a, col_b = st.columns(2)
-
             with col_a:
                 st.subheader("Verified vs Unverified")
-                fig_pie = px.pie(
-                    creator_stats, 
-                    names='Status', 
-                    hole=0.5, # Slightly larger hole makes the ring look thinner/smaller
-                    color='Status', 
-                    color_discrete_map={'Verified': '#47B39C', 'Unverified': '#EC6B56'}
-                )
-                
-                # Match text color to the slice color (or white for contrast)
-                fig_pie.update_traces(
-                    textposition='inside', 
-                    textinfo='percent+label', 
-                    insidetextfont=dict(size=14, color='#ffffff'), 
-                    marker=dict(line=dict(color='#111111', width=2)) # Adds a subtle border
-                )
-                
-                fig_pie.update_layout(
-                    margin=dict(t=20, b=20, l=20, r=20),
-                    height=350, # Explicitly setting height makes it smaller
-                    showlegend=False # Removing legend makes the chart itself larger in its box
-                )
+                fig_pie = px.pie(creator_stats, names='Status', hole=0.5, color='Status', 
+                                color_discrete_map={'Verified': '#47B39C', 'Unverified': '#EC6B56'})
+                fig_pie.update_traces(textposition='inside', textinfo='percent+label', 
+                                    insidetextfont=dict(size=14, color='#ffffff'), 
+                                    marker=dict(line=dict(color='#111111', width=2)))
+                fig_pie.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=350, showlegend=False)
                 st.plotly_chart(fig_pie, use_container_width=True)
 
             with col_b:
                 st.subheader("Creator Type Distribution")
-                # Custom colors for Group/User to match the "Pastel" feel in your image
                 type_colors = {'Group': '#72c4c9', 'User': '#f7d67d'} 
-                
-                fig_type = px.pie(
-                    creator_stats, 
-                    names=type_col, 
-                    hole=0.5, 
-                    color=type_col,
-                    color_discrete_map=type_colors
-                )
-                
-                # Syncing text color to slice color by using 'black' on light backgrounds
-                fig_type.update_traces(
-                    textposition='inside', 
-                    textinfo='percent+label', 
-                    insidetextfont=dict(size=14, color='black'),
-                    marker=dict(line=dict(color='#111111', width=2))
-                )
-                
-                fig_type.update_layout(
-                    margin=dict(t=20, b=20, l=20, r=20),
-                    height=350,
-                    showlegend=False
-                )
+                fig_type = px.pie(creator_stats, names=type_col, hole=0.5, color=type_col, color_discrete_map=type_colors)
+                fig_type.update_traces(textposition='inside', textinfo='percent+label', 
+                                    insidetextfont=dict(size=14, color='black'),
+                                    marker=dict(line=dict(color='#111111', width=2)))
+                fig_type.update_layout(margin=dict(t=20, b=20, l=20, r=20), height=350, showlegend=False)
                 st.plotly_chart(fig_type, use_container_width=True)
-                #Chart Settings
 
         st.divider()
         st.subheader("📈 Chart Settings")
-        data_limit = st.slider(
-            "Number of Creators to show", 
-            min_value=5, 
-            max_value=100, 
-            value=15, 
-            step=5,
-            help="Slide to see more or fewer creators in the bar charts and leaderboard."
-        )
+        data_limit = st.slider("Number of Creators to show", min_value=5, max_value=100, value=15, step=5)
 
-        # --- 5. TOP CREATORS ---
+        # 5. TOP CREATORS
         st.subheader(f"🏆 Top {data_limit} Creators (Most Bundles)")
         top_creators = creator_stats.sort_values('Bundle Count', ascending=False).head(data_limit)
-        fig_bar = px.bar(top_creators, x=name_col, y='Bundle Count', 
-                        color='Bundle Count', text_auto=True, template="plotly_dark")
+        fig_bar = px.bar(top_creators, x=name_col, y='Bundle Count', color='Bundle Count', text_auto=True, template="plotly_dark")
         st.plotly_chart(fig_bar, use_container_width=True)
 
-       
-        # TO CALL THIS IN YOUR MAIN APP:
-        # if page == "🎨 Creators W101":
-        #     show_creators_page(data)
-
-            # --- 7. CREATOR BUNDLE GROWTH OVER TIME ---
-
+        # 7. GROWTH CHART
         st.divider()
         st.subheader("📈 Creator Inventory Growth")
-
-        # 1. Let the user choose which creators to compare
-        # Force everything to a string (str) so the sorting doesn't crash
-       # Force everything to a string (str) so the sorting doesn't crash
-        c = get_column_names(data)
-
         all_creators = sorted([str(x) for x in data[c['name']].unique() if pd.notna(x)])
-        selected_creators = st.multiselect(
-            "Select Creators to track:", 
-            options=all_creators, 
-            default=all_creators[:3] if len(all_creators) >= 3 else all_creators
-        )
+        selected_creators = st.multiselect("Select Creators to track:", options=all_creators, 
+                                          default=all_creators[:3] if len(all_creators) >= 3 else all_creators)
         if selected_creators:
-            # Filter for selected creators
             growth_data = data.copy()
-            growth_data[c['name']] = growth_data[c['name']].astype(str)  # Ensure it's string for filtering
-
-            # Filter the data to include only the selected creators
-
+            growth_data[c['name']] = growth_data[c['name']].astype(str)
             growth_data = growth_data[growth_data[c['name']].isin(selected_creators)]
-
-            # Grouping logic: Count unique Bundle IDs per Day per Creator
             inventory_trend = growth_data.groupby([c['date'], c['name']])[c['id']].nunique().reset_index()
             inventory_trend.columns = ['Date', 'Creator', 'Bundle Count']
-
-            # Create Line Chart
-            fig_growth = px.line(
-                inventory_trend, 
-                x='Date', 
-                y='Bundle Count', 
-                color='Creator',
-                markers=True,
-                template="plotly_dark",
-                color_discrete_sequence=px.colors.qualitative.Pastel
-            )
-
-            # 5. Make it look smooth
+            fig_growth = px.line(inventory_trend, x='Date', y='Bundle Count', color='Creator', markers=True, 
+                                template="plotly_dark", color_discrete_sequence=px.colors.qualitative.Pastel)
             fig_growth.update_layout(hovermode="x unified")
             st.plotly_chart(fig_growth, use_container_width=True)
-        else:
-            st.info("Please select at least one creator to view their growth chart.")
 
-        # --- 8. CREATOR CATALOG EXPLORER ---
+        # 8. CATALOG EXPLORER
         st.divider()
         st.subheader("🔍 Creator Catalog Deep-Dive")
-
-        # Use the sorted list of creators we made earlier
-        search_name = st.selectbox(
-            "Select a Creator to see their full bundle list:", 
-            options=all_creators,
-            index=0,
-            key="catalog_search"
-        )
-
+        search_name = st.selectbox("Select a Creator:", options=all_creators, index=0, key="catalog_search")
         if search_name:
-            c = get_column_names(data)
-            
-            # 1. Filter for the selected creator
             creator_items = data[data[c['name']].astype(str) == search_name].copy()
-            
-            # 2. Get latest info for each unique Bundle ID
             catalog = creator_items.sort_values(c['date']).groupby(c['id']).last().reset_index()
-
-            # 3. Calculate "Days Old" logic
             if c['created'] in catalog.columns:
-                # Convert "Created" column to actual dates
                 catalog[c['created']] = pd.to_datetime(catalog[c['created']], errors='coerce')
-                
-                # Get today's date
                 today = pd.Timestamp.now().normalize()
-                
-                # Calculate difference and format
                 catalog['Days_Diff'] = (today - catalog[c['created']]).dt.days
-                catalog['Age Display'] = catalog['Days_Diff'].apply(
-                    lambda x: f"{int(x)} days old" if pd.notna(x) else "Unknown"
-                )
-            else:
-                catalog['Age Display'] = "Date Missing"
-
-            # 4. Verified Icon Logic
-            catalog['Verified Status'] = catalog[c['verified']].apply(
-                lambda x: "✅" if str(x).lower() in ['true', '1', 'yes'] else "❌"
-            )
-
-            # 5. Display the Table
-            # I'm assuming your bundle name column is 'bundleName' or 'Name'
-            # Change 'bundleName' below if your sheet uses a different name for the item
+                catalog['Age Display'] = catalog['Days_Diff'].apply(lambda x: f"{int(x)} days" if pd.notna(x) else "Unknown")
+            
+            catalog['Verified Status'] = catalog[c['verified']].apply(lambda x: "✅" if str(x).lower() in ['true', '1', 'yes'] else "❌")
             bundle_name_col = 'bundleName' if 'bundleName' in catalog.columns else 'name'
-            
             display_df = catalog[[c['id'], bundle_name_col, c['created'], 'Age Display', 'Verified Status', c['rank']]]
-            
             st.write(f"Found **{len(display_df)}** bundles for this creator.")
-            
-            st.dataframe(
-                display_df.sort_values(c['rank']),
-                column_config={
-                    c['id']: "ID",
-                    bundle_name_col: "Bundle Name",
-                    c['created']: st.column_config.DateColumn("Created Date", format="DD/MM/YYYY"),
-                    "Age Display": "Market Age",
-                    "Verified Status": "Verified",
-                    c['rank']: st.column_config.NumberColumn("Rank", format="%d ⭐")
-                },
-                use_container_width=True,
-                hide_index=True
-            )
+            st.dataframe(display_df.sort_values(c['rank']), use_container_width=True, hide_index=True)
 
-
-    
-
-    show_creators_page(data)    # The new page
-
-
-
-
-
-    
-              
-
-
-
+    # CALL THE PAGE
+    if not data.empty:
+        show_creators_page(data)
+    else:
+        st.warning("No data found for the selected timeframe.")
