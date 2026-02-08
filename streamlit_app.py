@@ -6,13 +6,30 @@ import pandas as pd
 from datetime import datetime, timedelta
 import plotly.express as px
 import plotly.graph_objects as go
+import json
+from pathlib import Path
 
 
 page = st.segmented_control(
     "Navigate", 
-    ["Bundles W101", "Creator W101", "Ranks Analysis", "Settings"], 
+    ["Bundles W101", "Creator W101", "Ranks Analysis", "Cart"], 
     default="Bundles W101"
 )
+
+
+# Persistent storage file
+CART_FILE = Path("cart_store.json")
+if not CART_FILE.exists():
+    CART_FILE.write_text(json.dumps([]))  # initialize empty list
+
+# Load current cart
+with CART_FILE.open("r") as f:
+    persistent_cart = json.load(f)
+
+if "cart" not in st.session_state:
+    st.session_state.cart = persistent_cart  # load saved cart
+
+
 
 if page == "Bundles W101":
 
@@ -215,6 +232,20 @@ if page == "Bundles W101":
                     st.write(f"**Favorites:** <span style='color:#ffe373'>{fav_display}</span>", unsafe_allow_html=True)
                     st.write(f"**Created:** {selected_data['Created'].strftime('%d %b %Y')} ({int((today - selected_data['Created']).days)} days old)")
                     st.write(f"**SnapDate:** {selected_data['snapDate']}")
+                    asset_id = selected_data['Id']  # might be np.int64
+
+                    if st.button("Add to Cart"):
+                        asset_id_py = int(asset_id)  # convert to native int
+                        if asset_id_py not in st.session_state.cart:
+                            st.session_state.cart.append(asset_id_py)
+                            # persist to file
+                            cart_to_save = [int(i) for i in st.session_state.cart]  # ensure all are Python ints
+                            with CART_FILE.open("w") as f:
+                                json.dump(cart_to_save, f)
+                            st.success(f"Asset {asset_id_py} added to cart!")
+                        else:
+                            st.info(f"Asset {asset_id_py} is already in the cart.")
+
                     
 
         else:
@@ -907,3 +938,100 @@ elif page == "Creator W101":
         show_creators_page(data)
     else:
         st.warning("No data found for the selected timeframe.")
+
+
+
+elif page == "Cart":
+    st.set_page_config(
+        layout="wide",
+        page_title="R-2284_Dash",
+        page_icon=":bar_chart:",
+    )
+
+    st.title("🛒 Cart Page")
+    
+    CART_FILE = Path("cart_store.json")
+
+# Ensure cart file exists
+if not CART_FILE.exists():
+    CART_FILE.write_text(json.dumps([]))
+
+# Load persistent cart
+with CART_FILE.open("r") as f:
+    persistent_cart = json.load(f)
+
+# Initialize session cart
+if "cart" not in st.session_state:
+    st.session_state.cart = persistent_cart
+
+# -------------------------------
+# Sample dataset
+# Replace this with your full data DataFrame
+# -------------------------------
+# Example dataset structure:
+data = pd.DataFrame([
+    {"Id": 101, "name": "Cool Hat", "creatorName": "UserA", "rank": 1, "Created": datetime(2026,1,1), "favoriteCount": 523, "snapDate": "2026-02-08", "link": "https://example.com", "Image Url": "https://via.placeholder.com/150", "creatorHasVerifiedBadge": True, "creatorType": "User"},
+    {"Id": 102, "name": "Epic Sword", "creatorName": "UserB", "rank": 2, "Created": datetime(2026,1,5), "favoriteCount": 1050, "snapDate": "2026-02-08", "link": "", "Image Url": "", "creatorHasVerifiedBadge": False, "creatorType": "User"},
+    {"Id": 103, "name": "Magic Shield", "creatorName": "UserC", "rank": 5, "Created": datetime(2025,12,25), "favoriteCount": 39895, "snapDate": "2026-02-08", "link": "https://example.com", "Image Url": "https://via.placeholder.com/150", "creatorHasVerifiedBadge": True, "creatorType": "Group"},
+])
+
+# -------------------------------
+# Filter data for items in the cart
+# -------------------------------
+cart_ids = st.session_state.cart
+cart_data = data[data['Id'].isin(cart_ids)].copy()
+
+if not cart_data.empty:
+    today = datetime.now()
+
+    # Format favorites compactly
+    def format_fav(fav_raw):
+        try:
+            fav_num = float(fav_raw)
+            if fav_num >= 1_000_000:
+                return f"{int(round(fav_num / 1_000_000))}M"
+            elif fav_num >= 1_000:
+                return f"{int(round(fav_num / 1_000))}k"
+            else:
+                return str(int(fav_num))
+        except Exception:
+            return str(fav_raw)
+
+    # Create formatted 'Created' display
+    cart_data['Created_Display'] = cart_data['Created'].apply(
+        lambda x: f"{x.strftime('%d %b %Y')} ({(today - x).days} days old)"
+    )
+
+    # Compact favorites
+    cart_data['Favorites_Display'] = cart_data['favoriteCount'].apply(format_fav)
+
+    # Verified badge display
+    def verified_label(val):
+        if pd.notna(val):
+            if isinstance(val, bool):
+                return "✔️" if val else ""
+            try:
+                return "✔️" if float(val) != 0 else ""
+            except:
+                return "✔️" if str(val).lower() in ('true','1','yes','y','t') else ""
+        return ""
+
+    cart_data['Verified'] = cart_data['creatorHasVerifiedBadge'].apply(verified_label)
+
+    # Simplify dataframe for display
+    display_df = cart_data[[
+        'Id', 'name', 'creatorName', 'Verified', 'creatorType', 'rank', 'Favorites_Display', 'Created_Display', 'snapDate'
+    ]].rename(columns={
+        'name': 'Asset Name',
+        'creatorName': 'Creator',
+        'creatorType': 'Type',
+        'rank': 'Rank',
+        'Favorites_Display': 'Favorites',
+        'Created_Display': 'Created',
+        'snapDate': 'Snap Date'
+    })
+
+    st.subheader("Cart Contents")
+    st.dataframe(display_df.reset_index(drop=True), use_container_width=True)
+else:
+    st.info("Your cart is empty.")
