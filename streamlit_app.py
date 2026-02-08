@@ -8,7 +8,8 @@ import plotly.express as px
 import plotly.graph_objects as go
 import json
 from pathlib import Path
-
+import requests
+import time
 
 page = st.segmented_control(
     "Navigate", 
@@ -17,18 +18,25 @@ page = st.segmented_control(
 )
 
 
-# Persistent storage file
 CART_FILE = Path("cart_store.json")
-if not CART_FILE.exists():
-    CART_FILE.write_text(json.dumps([]))  # initialize empty list
 
-# Load current cart
-with CART_FILE.open("r") as f:
-    persistent_cart = json.load(f)
+# Ensure file exists and is valid JSON
+if not CART_FILE.exists() or CART_FILE.stat().st_size == 0:
+    CART_FILE.write_text("[]")  # initialize empty list
 
+# Try loading the cart safely
+try:
+    with CART_FILE.open("r") as f:
+        persistent_cart = json.load(f)
+except json.JSONDecodeError:
+    # If file has invalid JSON, reset it
+    persistent_cart = []
+    with CART_FILE.open("w") as f:
+        json.dump(persistent_cart, f)
+
+# Initialize session cart
 if "cart" not in st.session_state:
-    st.session_state.cart = persistent_cart  # load saved cart
-
+    st.session_state.cart = persistent_cart
 
 
 if page == "Bundles W101":
@@ -234,7 +242,7 @@ if page == "Bundles W101":
                     st.write(f"**SnapDate:** {selected_data['snapDate']}")
                     asset_id = selected_data['Id']  # might be np.int64
 
-                    if st.button("Add to Cart"):
+                    if st.button("🛒 Add to Cart"):
                         asset_id_py = int(asset_id)  # convert to native int
                         if asset_id_py not in st.session_state.cart:
                             st.session_state.cart.append(asset_id_py)
@@ -437,6 +445,19 @@ if page == "Bundles W101":
                     
                     # IMPORTANT: Update label to indicate this is the LAST time it was seen
                     st.write(f"**Last Seen:** {selected_data1['snapDate']}")
+                    asset_id = selected_data['Id']  # might be np.int64
+
+                    if st.button("🛒 Add to Cart",key="Disappear_Bundles"):
+                        asset_id_py = int(asset_id)  # convert to native int
+                        if asset_id_py not in st.session_state.cart:
+                            st.session_state.cart.append(asset_id_py)
+                            # persist to file
+                            cart_to_save = [int(i) for i in st.session_state.cart]  # ensure all are Python ints
+                            with CART_FILE.open("w") as f:
+                                json.dump(cart_to_save, f)
+                            st.success(f"Asset {asset_id_py} added to cart!")
+                        else:
+                            st.info(f"Asset {asset_id_py} is already in the cart.")
 
             else:
                 if not Diappear_Bundles.empty:
@@ -721,6 +742,21 @@ elif page == "Ranks Analysis":
                             st.session_state['selected_analysis_id'] = None
                             st.rerun()
 
+                        asset_id = selected_data['Id']  # might be np.int64
+
+                        if st.button("🛒 Add to Cart",key="Rank_Analysis_KEY",use_container_width=True):
+                            asset_id_py = int(asset_id)  # convert to native int
+                            if asset_id_py not in st.session_state.cart:
+                                st.session_state.cart.append(asset_id_py)
+                                # persist to file
+                                cart_to_save = [int(i) for i in st.session_state.cart]  # ensure all are Python ints
+                                with CART_FILE.open("w") as f:
+                                    json.dump(cart_to_save, f)
+                                st.success(f"Asset {asset_id_py} added to cart!")
+                            else:
+                                st.info(f"Asset {asset_id_py} is already in the cart.")
+    
+
 
 
 elif page == "Creator W101":
@@ -942,96 +978,145 @@ elif page == "Creator W101":
 
 
 elif page == "Cart":
+   
+    # 1. PAGE CONFIGURATION
     st.set_page_config(
         layout="wide",
         page_title="R-2284_Dash",
         page_icon=":bar_chart:",
     )
 
-    st.title("🛒 Cart Page")
-    
+    # 2. FILE & CONNECTION INITIALIZATION
     CART_FILE = Path("cart_store.json")
+    if not CART_FILE.exists() or CART_FILE.stat().st_size == 0:
+        CART_FILE.write_text("[]")
 
-# Ensure cart file exists
-if not CART_FILE.exists():
-    CART_FILE.write_text(json.dumps([]))
+    conn = st.connection("gsheets", type=GSheetsConnection)
 
-# Load persistent cart
-with CART_FILE.open("r") as f:
-    persistent_cart = json.load(f)
+    # 3. LOAD PERSISTENT CART
+    try:
+        with CART_FILE.open("r") as f:
+            persistent_cart = json.load(f)
+    except json.JSONDecodeError:
+        persistent_cart = []
 
-# Initialize session cart
-if "cart" not in st.session_state:
-    st.session_state.cart = persistent_cart
+    if "cart" not in st.session_state:
+        st.session_state.cart = persistent_cart
 
-# -------------------------------
-# Sample dataset
-# Replace this with your full data DataFrame
-# -------------------------------
-# Example dataset structure:
-data = pd.DataFrame([
-    {"Id": 101, "name": "Cool Hat", "creatorName": "UserA", "rank": 1, "Created": datetime(2026,1,1), "favoriteCount": 523, "snapDate": "2026-02-08", "link": "https://example.com", "Image Url": "https://via.placeholder.com/150", "creatorHasVerifiedBadge": True, "creatorType": "User"},
-    {"Id": 102, "name": "Epic Sword", "creatorName": "UserB", "rank": 2, "Created": datetime(2026,1,5), "favoriteCount": 1050, "snapDate": "2026-02-08", "link": "", "Image Url": "", "creatorHasVerifiedBadge": False, "creatorType": "User"},
-    {"Id": 103, "name": "Magic Shield", "creatorName": "UserC", "rank": 5, "Created": datetime(2025,12,25), "favoriteCount": 39895, "snapDate": "2026-02-08", "link": "https://example.com", "Image Url": "https://via.placeholder.com/150", "creatorHasVerifiedBadge": True, "creatorType": "Group"},
-])
-
-# -------------------------------
-# Filter data for items in the cart
-# -------------------------------
-cart_ids = st.session_state.cart
-cart_data = data[data['Id'].isin(cart_ids)].copy()
-
-if not cart_data.empty:
-    today = datetime.now()
-
-    # Format favorites compactly
+    # 4. FORMATTING HELPERS
     def format_fav(fav_raw):
         try:
             fav_num = float(fav_raw)
-            if fav_num >= 1_000_000:
-                return f"{int(round(fav_num / 1_000_000))}M"
-            elif fav_num >= 1_000:
-                return f"{int(round(fav_num / 1_000))}k"
-            else:
-                return str(int(fav_num))
-        except Exception:
-            return str(fav_raw)
+            if fav_num >= 1_000_000: return f"{int(round(fav_num / 1_000_000))}M"
+            if fav_num >= 1_000: return f"{int(round(fav_num / 1_000))}k"
+            return str(int(fav_num))
+        except: return str(fav_raw)
 
-    # Create formatted 'Created' display
-    cart_data['Created_Display'] = cart_data['Created'].apply(
-        lambda x: f"{x.strftime('%d %b %Y')} ({(today - x).days} days old)"
-    )
-
-    # Compact favorites
-    cart_data['Favorites_Display'] = cart_data['favoriteCount'].apply(format_fav)
-
-    # Verified badge display
     def verified_label(val):
-        if pd.notna(val):
-            if isinstance(val, bool):
-                return "✔️" if val else ""
-            try:
-                return "✔️" if float(val) != 0 else ""
-            except:
-                return "✔️" if str(val).lower() in ('true','1','yes','y','t') else ""
-        return ""
+        return "✔️" if str(val).lower() in ('true','1','yes','y','t') else ""
 
-    cart_data['Verified'] = cart_data['creatorHasVerifiedBadge'].apply(verified_label)
+    # 5. HEADER & TOP CONTROLS
+    st.title("🛒 Your Saved Assets")
 
-    # Simplify dataframe for display
-    display_df = cart_data[[
-        'Id', 'name', 'creatorName', 'Verified', 'creatorType', 'rank', 'Favorites_Display', 'Created_Display', 'snapDate'
-    ]].rename(columns={
-        'name': 'Asset Name',
-        'creatorName': 'Creator',
-        'creatorType': 'Type',
-        'rank': 'Rank',
-        'Favorites_Display': 'Favorites',
-        'Created_Display': 'Created',
-        'snapDate': 'Snap Date'
-    })
 
-    st.subheader("Cart Contents")
-    st.dataframe(display_df.reset_index(drop=True), use_container_width=True)
-else:
-    st.info("Your cart is empty.")
+
+    # Create the columns
+    col1, col2 = st.columns([6, 1])
+
+    with col1:
+        # Adding the Send button here
+        # We give it a unique key 'send_cart_items' to avoid any ID conflicts
+        if st.button("⬆️ Send to n8n", key="send_cart_items"):
+            if st.session_state.cart:
+                # The n8n Webhook URL (Replace with your actual URL)
+                WEBHOOK_URL = "https://n8n.srv1263137.hstgr.cloud/webhook-test/8d29ad27-1b93-44b3-8d60-d6044cb5b6ec"
+                
+                # Prepare the data payload
+                # We send the list of IDs and a timestamp
+                payload = {
+                    "sent_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                    "item_count": len(st.session_state.cart),
+                    "asset_ids": st.session_state.cart
+                }
+                
+                try:
+                    # Send the POST request
+                    response = requests.post(WEBHOOK_URL, json=payload, timeout=10)
+                    
+                    # Check if it was successful (HTTP 200)
+                    if response.status_code == 200:
+                        st.success("✅ Data sent to n8n successfully!")
+                        
+                        time.sleep(2)
+                        st.session_state.cart = []
+                        CART_FILE.write_text("[]")
+                        st.rerun()
+
+                    else:
+                        st.error(f"❌ Failed to send. Status Code: {response.status_code}")
+                
+                except Exception as e:
+                    st.error(f"⚠️ Connection Error: {e}")
+            else:
+                st.warning("Your cart is empty!")
+    with col2:
+        # Popover for clearing the cart
+        with st.popover("🗑️ Clear Cart"):
+            st.write("Are you sure?")
+            if st.button("Yes, delete everything", type="primary", key="confirm_clear_all"):
+                st.session_state.cart = []
+                CART_FILE.write_text("[]")
+                st.rerun()
+
+    # 6. MAIN DATA LOGIC
+    if st.session_state.cart:
+        # A. Load full dataset
+        full_data = conn.read(worksheet="Testing DATA.1")
+        
+        # B. Filter by Cart IDs
+        cart_ids_str = [str(i) for i in st.session_state.cart]
+        full_data['Id_str'] = full_data['Id'].astype(str)
+        cart_data = full_data[full_data['Id_str'].isin(cart_ids_str)].copy()
+
+        if not cart_data.empty:
+            # C. DEDUPLICATION (Keep most recent snapDate)
+            cart_data['snapDate'] = pd.to_datetime(cart_data['snapDate'], errors='coerce')
+            cart_data = cart_data.sort_values('snapDate', ascending=False).drop_duplicates(subset=['Id_str'])
+
+            # D. FORMATTING FOR DISPLAY
+            today = datetime.now()
+            cart_data['Created'] = pd.to_datetime(cart_data['Created'], errors='coerce')
+            
+            cart_data['Created_Display'] = cart_data['Created'].apply(
+                lambda x: f"{x.strftime('%d %b %Y')} ({(today - x).days} days old)" if pd.notnull(x) else "N/A"
+            )
+            cart_data['Favorites'] = cart_data['favoriteCount'].apply(format_fav)
+            cart_data['Verified'] = cart_data['creatorHasVerifiedBadge'].apply(verified_label)
+
+            # Final Table Cleanup
+            display_df = cart_data[[
+                'Id', 'name', 'creatorName', 'Verified', 'creatorType', 'rank', 'Favorites', 'Created_Display', 'snapDate'
+            ]].rename(columns={
+                'name': 'Asset Name',
+                'creatorName': 'Creator',
+                'creatorType': 'Type',
+                'rank': 'Rank',
+                'Created_Display': 'Created',
+                'snapDate': 'Latest Snap'
+            })
+
+            st.subheader(f"Showing {len(display_df)} unique items")
+            st.dataframe(
+                display_df.reset_index(drop=True), 
+                use_container_width=True,
+                column_config={
+                    "Id": st.column_config.TextColumn("Asset ID"),
+                    "Latest Snap": st.column_config.DateColumn("Latest Update")
+                }
+            )
+        else:
+            st.warning("The IDs in your cart don't match any data in the sheet.")
+    else:
+        st.info("Your cart is empty. Add some items to get started!")
+
+    st.divider()
