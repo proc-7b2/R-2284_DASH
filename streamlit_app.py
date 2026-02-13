@@ -465,7 +465,7 @@ if page == "Bundles W101":
                     
                     # IMPORTANT: Update label to indicate this is the LAST time it was seen
                     st.write(f"**Last Seen:** {selected_data1['snapDate']}")
-                    asset_id = selected_data['Id']  # might be np.int64
+                    asset_id = selected_data1['Id']  # might be np.int64
 
                     if st.button("🛒 Add to Cart",key="Disappear_Bundles"):
                         asset_id_py = int(asset_id)  # convert to native int
