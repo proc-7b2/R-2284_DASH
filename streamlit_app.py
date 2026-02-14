@@ -1046,10 +1046,10 @@ elif page == "Cart":
     with col1:
         # Adding the Send button here
         # We give it a unique key 'send_cart_items' to avoid any ID conflicts
-        if st.button("⬆️ Send to n8n", key="send_cart_items"):
+        if st.button("⬆️ Send", key="send_cart_items"):
             if st.session_state.cart:
-                # The n8n Webhook URL (Replace with your actual URL)
-                WEBHOOK_URL = "https://n8n.srv1263137.hstgr.cloud/webhook-test/8d29ad27-1b93-44b3-8d60-d6044cb5b6ec"
+                
+                WEBHOOK_URL = st.secrets["WEBHOOK_URL-private"]
                 
                 # Prepare the data payload
                 # We send the list of IDs and a timestamp
@@ -1065,7 +1065,7 @@ elif page == "Cart":
                     
                     # Check if it was successful (HTTP 200)
                     if response.status_code == 200:
-                        st.success("✅ Data sent to n8n successfully!")
+                        st.success("✅ Data sent successfully!")
                         
                         time.sleep(2)
                         st.session_state.cart = []
