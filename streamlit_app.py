@@ -237,7 +237,14 @@ if page == "Bundles W101":
                     fav_display = str(fav_raw) # Simplified for brevity, keep your formatting logic
                     st.write(f"**Favorites:** <span style='color:#ffe373'>{fav_display}</span>", unsafe_allow_html=True)
                     
-                    st.write(f"**Created:** {selected_data['Created'].strftime('%d %b %Y') if pd.notna(selected_data['Created']) else 'N/A'}")
+                   
+                     # Date
+                    if pd.notna(selected_data['Created']):
+                        created_dt = pd.to_datetime(selected_data['Created'])
+                        days_old = (today - created_dt).days
+                        st.write(f"**Created:** {created_dt.strftime('%d %b %Y')} ({days_old} days old)")
+                    else:
+                        st.write("**Created:** N/A")
                     st.write(f"**SnapDate:** {selected_data['snapDate']}")
 
                     # Cart Logic
